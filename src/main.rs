@@ -86,6 +86,17 @@ enum BaddieColor {
     Yellow,
 }
 
+impl Into<Color> for BaddieColor {
+    fn into(self) -> Color {
+        match self {
+            BaddieColor::Brown => Color::from_rgb_u32(0x58_29_26),
+            BaddieColor::Green => Color::from_rgb_u32(0x05_82_1a),
+            BaddieColor::Blue => Color::from_rgb_u32(0x24_5e_97),
+            BaddieColor::Yellow => Color::from_rgb_u32(0x8c_97_2c),
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Rand)]
 enum BaddieFace {
     Bad,
@@ -113,22 +124,13 @@ impl Baddie {
 }
 
 struct Resources {
-    baddies_colors: HashMap<BaddieColor, graphics::Image>,
+    baddies_bg: graphics::Image,
     baddies_faces: HashMap<BaddieFace, graphics::Image>,
     font: graphics::Font,
 }
 
 impl Resources {
     fn new(ctx: &mut Context) -> GameResult<Resources> {
-        let mut baddies_colors = HashMap::new();
-        baddies_colors.insert(BaddieColor::Brown, graphics::Image::new(ctx, "/brown.png")?);
-        baddies_colors.insert(BaddieColor::Green, graphics::Image::new(ctx, "/green.png")?);
-        baddies_colors.insert(BaddieColor::Blue, graphics::Image::new(ctx, "/blue.png")?);
-        baddies_colors.insert(
-            BaddieColor::Yellow,
-            graphics::Image::new(ctx, "/yellow.png")?,
-        );
-
         let mut baddies_faces = HashMap::new();
         baddies_faces.insert(BaddieFace::Bad, graphics::Image::new(ctx, "/bad.png")?);
         baddies_faces.insert(BaddieFace::Happy, graphics::Image::new(ctx, "/happy.png")?);
@@ -141,7 +143,7 @@ impl Resources {
         baddies_faces.insert(BaddieFace::Wink, graphics::Image::new(ctx, "/wink.png")?);
 
         Ok(Resources {
-            baddies_colors,
+            baddies_bg: graphics::Image::new(ctx, "/white.png")?,
             baddies_faces,
             font: graphics::Font::new(ctx, "/DejaVuSerif.ttf", 48)?,
         })
@@ -227,14 +229,13 @@ impl event::EventHandler for MainState {
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         graphics::clear(ctx);
 
+        // get bg & infos
+        let bg = &self.resources.baddies_bg;
+        let Rect { w: iw, h: ih, .. } = bg.get_dimensions();
+
         // draw player
-        graphics::set_color(ctx, Color::from_rgb(255, 255, 255))?;
-
         if let Some((color, face)) = self.player.captured {
-            let img = &self.resources.baddies_colors[&color];
-
-            let Rect { w: iw, h: ih, .. } = img.get_dimensions();
-
+            graphics::set_color(ctx, color.into())?;
             let scale = Point2::new(RADIUS * 2.0 / iw, RADIUS * 2.0 / ih);
 
             let params = graphics::DrawParam {
@@ -243,19 +244,17 @@ impl event::EventHandler for MainState {
                 ..Default::default()
             };
 
-            graphics::draw_ex(ctx, img, params)?;
+            graphics::circle(ctx, DrawMode::Fill, self.player.position, RADIUS, 0.1)?;
             graphics::draw_ex(ctx, &self.resources.baddies_faces[&face], params)?;
         } else {
+            graphics::set_color(ctx, Color::from_rgb(255, 255, 255))?;
             graphics::circle(ctx, DrawMode::Fill, self.player.position, RADIUS, 0.1)?;
         }
 
         // draw baddies
-        graphics::set_color(ctx, Color::from_rgb(255, 255, 255))?;
         for baddie in &self.baddies {
-            let img = &self.resources.baddies_colors[&baddie.color];
-
+            graphics::set_color(ctx, baddie.color.into())?;
             let Rect { w: bw, h: bh, .. } = baddie.body;
-            let Rect { w: iw, h: ih, .. } = img.get_dimensions();
 
             let scale = Point2::new(bw / iw, bh / ih);
 
@@ -265,7 +264,7 @@ impl event::EventHandler for MainState {
                 ..Default::default()
             };
 
-            graphics::draw_ex(ctx, img, params)?;
+            graphics::draw_ex(ctx, bg, params)?;
             graphics::draw_ex(ctx, &self.resources.baddies_faces[&baddie.face], params)?;
         }
 
