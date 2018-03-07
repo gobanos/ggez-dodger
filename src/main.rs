@@ -1,12 +1,12 @@
 #![windows_subsystem = "windows"]
 
+extern crate flexi_logger;
 extern crate ggez;
+#[macro_use]
+extern crate log;
 extern crate rand;
 #[macro_use]
 extern crate rand_derive;
-#[macro_use]
-extern crate log;
-extern crate flexi_logger;
 
 use ggez::*;
 use ggez::graphics::{Color, DrawMode, Point2, Rect, Vector2};
@@ -155,6 +155,7 @@ struct MainState {
     timer: u32,
     baddies: Vec<Baddie>,
     resources: Resources,
+    paused: bool,
 }
 
 impl MainState {
@@ -172,6 +173,7 @@ impl MainState {
             baddies: Vec::new(),
             timer: 0,
             resources: Resources::new(ctx)?,
+            paused: false,
         };
         Ok(s)
     }
@@ -181,43 +183,45 @@ impl event::EventHandler for MainState {
     /// Called upon each physics update to the game.
     /// This should be where the game's logic takes place.
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
-        self.player.update(ctx)?;
+        if !self.paused {
+            self.player.update(ctx)?;
 
-        if self.timer % 10 == 0 {
-            self.baddies.push(Baddie::new());
-        }
-
-        self.baddies.retain(|b| b.body.y < HEIGHT);
-
-        let player_rect = self.player.rect();
-
-        // used in place of drain_filter...
-        let mut i = 0;
-        while i != self.baddies.len() {
-            if player_rect.overlaps(&self.baddies[i].body) {
-                let baddie = self.baddies.swap_remove(i);
-
-                self.player.captured = if let Some((c, f)) = self.player.captured.take() {
-                    if c == baddie.color || f == baddie.face {
-                        self.player.score += 1;
-                        Some((baddie.color, baddie.face))
-                    } else {
-                        self.player.score = 0;
-                        None
-                    }
-                } else {
-                    Some((baddie.color, baddie.face))
-                };
-            } else {
-                i += 1;
+            if self.timer % 10 == 0 {
+                self.baddies.push(Baddie::new());
             }
+
+            self.baddies.retain(|b| b.body.y < HEIGHT);
+
+            let player_rect = self.player.rect();
+
+            // used in place of drain_filter...
+            let mut i = 0;
+            while i != self.baddies.len() {
+                if player_rect.overlaps(&self.baddies[i].body) {
+                    let baddie = self.baddies.swap_remove(i);
+
+                    self.player.captured = if let Some((c, f)) = self.player.captured.take() {
+                        if c == baddie.color || f == baddie.face {
+                            self.player.score += 1;
+                            Some((baddie.color, baddie.face))
+                        } else {
+                            self.player.score = 0;
+                            None
+                        }
+                    } else {
+                        Some((baddie.color, baddie.face))
+                    };
+                } else {
+                    i += 1;
+                }
+            }
+
+            self.timer += 1;
+
+            self.baddies
+                .iter_mut()
+                .for_each(|b| b.body.translate(b.speed));
         }
-
-        self.timer += 1;
-
-        self.baddies
-            .iter_mut()
-            .for_each(|b| b.body.translate(b.speed));
 
         Ok(())
     }
@@ -284,6 +288,23 @@ impl event::EventHandler for MainState {
             &self.resources.font,
         )?;
         graphics::draw(ctx, &text, Point2::new(10.0, 10.0), 0.0)?;
+
+        // draw paused
+        if self.paused {
+            graphics::set_color(ctx, Color::from_rgb(255, 255, 255))?;
+            let text_pause = graphics::Text::new(ctx, "PAUSED", &self.resources.font)?;
+            let pos_x =
+                ctx.conf.window_mode.width / 2 - self.resources.font.get_width("PAUSED") as u32 / 2;
+            let pos_y =
+                ctx.conf.window_mode.height / 2 - self.resources.font.get_height() as u32 / 2;
+
+            graphics::draw(
+                ctx,
+                &text_pause,
+                Point2::new(pos_x as f32, pos_y as f32),
+                0.,
+            )?;
+        }
 
         graphics::present(ctx);
         Ok(())
@@ -387,6 +408,9 @@ impl event::EventHandler for MainState {
             event::Button::B if self.player.on_the_ground() => {
                 self.player.speed.y = -JUMP_HEIGHT;
                 self.player.fast_dedup = false;
+            }
+            event::Button::Start => {
+                self.paused = !self.paused;
             }
             _ => (),
         }
