@@ -183,45 +183,47 @@ impl event::EventHandler for MainState {
     /// Called upon each physics update to the game.
     /// This should be where the game's logic takes place.
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
-        if !self.paused {
-            self.player.update(ctx)?;
-
-            if self.timer % 10 == 0 {
-                self.baddies.push(Baddie::new());
-            }
-
-            self.baddies.retain(|b| b.body.y < HEIGHT);
-
-            let player_rect = self.player.rect();
-
-            // used in place of drain_filter...
-            let mut i = 0;
-            while i != self.baddies.len() {
-                if player_rect.overlaps(&self.baddies[i].body) {
-                    let baddie = self.baddies.swap_remove(i);
-
-                    self.player.captured = if let Some((c, f)) = self.player.captured.take() {
-                        if c == baddie.color || f == baddie.face {
-                            self.player.score += 1;
-                            Some((baddie.color, baddie.face))
-                        } else {
-                            self.player.score = 0;
-                            None
-                        }
-                    } else {
-                        Some((baddie.color, baddie.face))
-                    };
-                } else {
-                    i += 1;
-                }
-            }
-
-            self.timer += 1;
-
-            self.baddies
-                .iter_mut()
-                .for_each(|b| b.body.translate(b.speed));
+        if self.paused {
+            return Ok(());
         }
+
+        self.player.update(ctx)?;
+
+        if self.timer % 10 == 0 {
+            self.baddies.push(Baddie::new());
+        }
+
+        self.baddies.retain(|b| b.body.y < HEIGHT);
+
+        let player_rect = self.player.rect();
+
+        // used in place of drain_filter...
+        let mut i = 0;
+        while i != self.baddies.len() {
+            if player_rect.overlaps(&self.baddies[i].body) {
+                let baddie = self.baddies.swap_remove(i);
+
+                self.player.captured = if let Some((c, f)) = self.player.captured.take() {
+                    if c == baddie.color || f == baddie.face {
+                        self.player.score += 1;
+                        Some((baddie.color, baddie.face))
+                    } else {
+                        self.player.score = 0;
+                        None
+                    }
+                } else {
+                    Some((baddie.color, baddie.face))
+                };
+            } else {
+                i += 1;
+            }
+        }
+
+        self.timer += 1;
+
+        self.baddies
+            .iter_mut()
+            .for_each(|b| b.body.translate(b.speed));
 
         Ok(())
     }
