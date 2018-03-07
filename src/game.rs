@@ -96,9 +96,9 @@ impl EventHandler for MainState {
 
         self.timer += 1;
 
-        self.baddies
-            .iter_mut()
-            .for_each(|b| b.body.translate(b.speed));
+        for baddie in &mut self.baddies {
+            baddie.update(ctx)?;
+        }
 
         Ok(())
     }

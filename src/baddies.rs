@@ -1,14 +1,16 @@
 use constants::*;
 
+use ggez::{Context, GameResult};
 use graphics::{Color, Rect, Vector2};
 use rand::{thread_rng, Rng};
 use rand::distributions::{Range, Sample};
 
 pub struct Baddie {
     pub body: Rect,
-    pub speed: Vector2,
     pub color: BaddieColor,
     pub face: BaddieFace,
+
+    speed: Vector2,
 }
 
 impl Baddie {
@@ -24,6 +26,11 @@ impl Baddie {
             color: rng.gen(),
             face: rng.gen(),
         }
+    }
+
+    pub fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
+        self.body.translate(self.speed);
+        Ok(())
     }
 }
 
