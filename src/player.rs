@@ -1,10 +1,10 @@
 use constants::*;
 use baddies::{BaddieColor, BaddieFace};
 use actions::PlayerAction;
+use resources::Resources;
 
 use ggez::{Context, GameResult};
-use graphics::{Point2, Rect, Vector2};
-
+use graphics::{self, Point2, Rect, Vector2};
 
 pub struct Player {
     pub position: Point2,
@@ -43,6 +43,34 @@ impl Player {
             } else {
                 1.0
             };
+        }
+
+        Ok(())
+    }
+
+    pub fn draw(&self, res: &Resources, ctx: &mut Context) -> GameResult<()> {
+        use self::graphics::*;
+
+        // draw player
+        if let Some((color, face)) = self.captured {
+            set_color(ctx, color.into())?;
+
+            let img = &res.baddies_faces[&face];
+            let Rect { w: iw, h: ih, .. } = img.get_dimensions();
+
+            let scale = Point2::new(RADIUS * 2.0 / iw, RADIUS * 2.0 / ih);
+
+            let params = DrawParam {
+                dest: self.rect().point(),
+                scale,
+                ..Default::default()
+            };
+
+            circle(ctx, DrawMode::Fill, self.position, RADIUS, 0.1)?;
+            draw_ex(ctx, img, params)?;
+        } else {
+            set_color(ctx, Color::from_rgb(255, 255, 255))?;
+            circle(ctx, DrawMode::Fill, self.position, RADIUS, 0.1)?;
         }
 
         Ok(())

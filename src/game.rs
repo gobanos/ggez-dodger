@@ -1,11 +1,11 @@
 use constants::*;
-use actions::{Action, PlayerAction, GameAction};
+use actions::{Action, GameAction, PlayerAction};
 use player::Player;
 use baddies::Baddie;
 use resources::Resources;
 
 use ggez::{graphics, Context, GameResult};
-use ggez::graphics::{Color, DrawMode, DrawParam, Point2, Rect, Text};
+use ggez::graphics::Point2;
 use ggez::event::{Axis, Button, EventHandler, Keycode, Mod, MouseButton, MouseState};
 
 pub struct MainState {
@@ -76,7 +76,7 @@ impl EventHandler for MainState {
         let mut i = 0;
         while i != self.baddies.len() {
             if player_rect.overlaps(&self.baddies[i].body) {
-                let baddie = self.baddies.swap_remove(i);
+                let baddie = self.baddies.remove(i);
 
                 self.player.captured = if let Some((c, f)) = self.player.captured.take() {
                     if c == baddie.color || f == baddie.face {
@@ -108,74 +108,45 @@ impl EventHandler for MainState {
     /// `graphics::clear()` and end it with
     /// `graphics::present()` and `timer::sleep_until_next_frame()`
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
-        graphics::clear(ctx);
+        use self::graphics::*;
 
-        // get bg & infos
-        let bg = &self.resources.baddies_bg;
-        let Rect { w: iw, h: ih, .. } = bg.get_dimensions();
+        clear(ctx);
 
         // draw player
-        if let Some((color, face)) = self.player.captured {
-            graphics::set_color(ctx, color.into())?;
-            let scale = Point2::new(RADIUS * 2.0 / iw, RADIUS * 2.0 / ih);
-
-            let params = DrawParam {
-                dest: self.player.rect().point(),
-                scale,
-                ..Default::default()
-            };
-
-            graphics::circle(ctx, DrawMode::Fill, self.player.position, RADIUS, 0.1)?;
-            graphics::draw_ex(ctx, &self.resources.baddies_faces[&face], params)?;
-        } else {
-            graphics::set_color(ctx, Color::from_rgb(255, 255, 255))?;
-            graphics::circle(ctx, DrawMode::Fill, self.player.position, RADIUS, 0.1)?;
-        }
+        self.player.draw(&self.resources, ctx)?;
 
         // draw baddies
         for baddie in &self.baddies {
-            graphics::set_color(ctx, baddie.color.into())?;
-            let Rect { w: bw, h: bh, .. } = baddie.body;
-
-            let scale = Point2::new(bw / iw, bh / ih);
-
-            let params = DrawParam {
-                dest: baddie.body.point(),
-                scale,
-                ..Default::default()
-            };
-
-            graphics::draw_ex(ctx, bg, params)?;
-            graphics::draw_ex(ctx, &self.resources.baddies_faces[&baddie.face], params)?;
+            baddie.draw(&self.resources, ctx)?;
         }
 
         // draw ground
-        graphics::set_color(ctx, Color::from_rgb(0, 0, 0))?;
-        graphics::rectangle(
+        set_color(ctx, Color::from_rgb(0, 0, 0))?;
+        rectangle(
             ctx,
             DrawMode::Fill,
             Rect::new(0.0, HEIGHT - GROUND_HEIGHT, WIDTH, GROUND_HEIGHT),
         )?;
 
         // draw score
-        graphics::set_color(ctx, Color::from_rgb(255, 255, 255))?;
+        set_color(ctx, Color::from_rgb(255, 255, 255))?;
         let text = Text::new(
             ctx,
             &format!("SCORE: {}", self.player.score),
             &self.resources.font,
         )?;
-        graphics::draw(ctx, &text, Point2::new(10.0, 10.0), 0.0)?;
+        draw(ctx, &text, Point2::new(10.0, 10.0), 0.0)?;
 
         // draw paused
         if self.paused {
-            graphics::set_color(ctx, Color::from_rgb(255, 255, 255))?;
+            set_color(ctx, Color::from_rgb(255, 255, 255))?;
             let text_pause = Text::new(ctx, "PAUSED", &self.resources.font)?;
             let pos_x =
                 ctx.conf.window_mode.width / 2 - self.resources.font.get_width("PAUSED") as u32 / 2;
             let pos_y =
                 ctx.conf.window_mode.height / 2 - self.resources.font.get_height() as u32 / 2;
 
-            graphics::draw(
+            draw(
                 ctx,
                 &text_pause,
                 Point2::new(pos_x as f32, pos_y as f32),
@@ -183,7 +154,7 @@ impl EventHandler for MainState {
             )?;
         }
 
-        graphics::present(ctx);
+        present(ctx);
         Ok(())
     }
 

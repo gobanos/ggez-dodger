@@ -1,7 +1,8 @@
 use constants::*;
+use resources::Resources;
 
 use ggez::{Context, GameResult};
-use graphics::{Color, Rect, Vector2};
+use graphics::{self, Color, Rect, Vector2};
 use rand::{thread_rng, Rng};
 use rand::distributions::{Range, Sample};
 
@@ -31,6 +32,28 @@ impl Baddie {
     pub fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
         self.body.translate(self.speed);
         Ok(())
+    }
+
+    pub fn draw(&self, res: &Resources, ctx: &mut Context) -> GameResult<()> {
+        use self::graphics::*;
+
+        // get bg & infos
+        let bg = &res.baddies_bg;
+        let Rect { w: iw, h: ih, .. } = bg.get_dimensions();
+
+        set_color(ctx, self.color.into())?;
+        let Rect { w: bw, h: bh, .. } = self.body;
+
+        let scale = Point2::new(bw / iw, bh / ih);
+
+        let params = DrawParam {
+            dest: self.body.point(),
+            scale,
+            ..Default::default()
+        };
+
+        draw_ex(ctx, bg, params)?;
+        draw_ex(ctx, &res.baddies_faces[&self.face], params)
     }
 }
 
