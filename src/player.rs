@@ -1,18 +1,18 @@
 use constants::*;
-use baddies::{BaddieColor, BaddieFace};
-use actions::PlayerAction;
+use baddies::{Baddie, BaddieColor, BaddieFace};
+use actions::{MoveDirection, PlayerAction};
 use resources::Resources;
 
 use ggez::{Context, GameResult};
 use graphics::{self, Point2, Rect, Vector2};
 
 pub struct Player {
-    pub position: Point2,
-    pub speed: Vector2,
-    pub captured: Option<(BaddieColor, BaddieFace)>,
-    pub score: u32,
-
+    position: Point2,
+    speed: Vector2,
+    captured: Option<(BaddieColor, BaddieFace)>,
+    score: u32,
     fast_attenuation: bool,
+    current_direction: MoveDirection,
 }
 
 impl Player {
@@ -22,14 +22,23 @@ impl Player {
             speed: Vector2::new(0.0, 0.0),
             captured: None,
             score: 0,
-
             fast_attenuation: false,
+            current_direction: MoveDirection::Stop,
         }
     }
 
     /// Called upon each physics update to the game.
     /// This should be where the game's logic takes place.
     pub fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
+        let wanted = self.wanted_speed();
+
+        let damping = if self.on_the_ground() { PLAYER_DAMPING } else { FLYING_DAMPING };
+        if self.speed.x > wanted {
+            self.speed.x = wanted.max(self.speed.x - damping);
+        } else {
+            self.speed.x = wanted.min(self.speed.x + damping);
+        }
+
         self.position.x = (self.position.x + self.speed.x)
             .min(WIDTH - RADIUS)
             .max(RADIUS);
@@ -76,6 +85,17 @@ impl Player {
         Ok(())
     }
 
+    pub fn draw_ui(&self, res: &Resources, ctx: &mut Context) -> GameResult<()> {
+        use self::graphics::*;
+
+        // draw score
+        set_color(ctx, Color::from_rgb(255, 255, 255))?;
+        let text = Text::new(ctx, &format!("SCORE: {}", self.score), &res.font)?;
+        draw(ctx, &text, Point2::new(10.0, 10.0), 0.0)?;
+
+        Ok(())
+    }
+
     pub fn on_the_ground(&self) -> bool {
         self.position.y >= MAX_Y
     }
@@ -93,9 +113,7 @@ impl Player {
         use self::PlayerAction::*;
 
         match action {
-            MoveLeft => self.speed.x = -PLAYER_SPEED,
-            MoveRight => self.speed.x = PLAYER_SPEED,
-            StopMove => self.speed.x = 0.0,
+            Move(dir) => self.current_direction = dir,
             Jump => {
                 self.speed.y = -JUMP_HEIGHT;
                 self.fast_attenuation = false;
@@ -105,5 +123,29 @@ impl Player {
         }
 
         Ok(())
+    }
+
+    pub fn collides(&mut self, baddie: &Baddie) {
+        self.captured = if let Some((c, f)) = self.captured.take() {
+            if c == baddie.color || f == baddie.face {
+                self.score += 1;
+                Some((baddie.color, baddie.face))
+            } else {
+                self.score = 0;
+                None
+            }
+        } else {
+            Some((baddie.color, baddie.face))
+        };
+    }
+
+    fn wanted_speed(&self) -> f32 {
+        use self::MoveDirection::*;
+
+        match self.current_direction {
+            Stop => 0.0,
+            Left => -PLAYER_SPEED,
+            Right => PLAYER_SPEED,
+        }
     }
 }

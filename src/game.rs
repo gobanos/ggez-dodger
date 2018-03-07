@@ -1,10 +1,10 @@
 use constants::*;
-use actions::{Action, GameAction, PlayerAction};
+use actions::{Action, GameAction, MoveDirection, PlayerAction};
 use player::Player;
 use baddies::Baddie;
 use resources::Resources;
 
-use ggez::{graphics, Context, GameResult};
+use ggez::{graphics, timer, Context, GameResult};
 use ggez::graphics::Point2;
 use ggez::event::{Axis, Button, EventHandler, Keycode, Mod, MouseButton, MouseState};
 
@@ -77,18 +77,7 @@ impl EventHandler for MainState {
         while i != self.baddies.len() {
             if player_rect.overlaps(&self.baddies[i].body) {
                 let baddie = self.baddies.remove(i);
-
-                self.player.captured = if let Some((c, f)) = self.player.captured.take() {
-                    if c == baddie.color || f == baddie.face {
-                        self.player.score += 1;
-                        Some((baddie.color, baddie.face))
-                    } else {
-                        self.player.score = 0;
-                        None
-                    }
-                } else {
-                    Some((baddie.color, baddie.face))
-                };
+                self.player.collides(&baddie);
             } else {
                 i += 1;
             }
@@ -128,14 +117,7 @@ impl EventHandler for MainState {
             Rect::new(0.0, HEIGHT - GROUND_HEIGHT, WIDTH, GROUND_HEIGHT),
         )?;
 
-        // draw score
-        set_color(ctx, Color::from_rgb(255, 255, 255))?;
-        let text = Text::new(
-            ctx,
-            &format!("SCORE: {}", self.player.score),
-            &self.resources.font,
-        )?;
-        draw(ctx, &text, Point2::new(10.0, 10.0), 0.0)?;
+        self.player.draw_ui(&self.resources, ctx)?;
 
         // draw paused
         if self.paused {
@@ -155,6 +137,7 @@ impl EventHandler for MainState {
         }
 
         present(ctx);
+        timer::yield_now();
         Ok(())
     }
 
@@ -218,9 +201,11 @@ impl EventHandler for MainState {
     fn controller_button_down_event(&mut self, _ctx: &mut Context, btn: Button, instance_id: i32) {
         debug!("controller_button_down_event - {:?} ({})", btn, instance_id);
 
+        use self::MoveDirection::*;
+
         match btn {
-            Button::DPadLeft => self.add_action(PlayerAction::MoveLeft),
-            Button::DPadRight => self.add_action(PlayerAction::MoveRight),
+            Button::DPadLeft => self.add_action(PlayerAction::from(Left)),
+            Button::DPadRight => self.add_action(PlayerAction::from(Right)),
             Button::DPadDown if !self.player.on_the_ground() => self.add_action(PlayerAction::Dump),
             Button::B if self.player.on_the_ground() => self.add_action(PlayerAction::Jump),
             Button::Start => self.add_action(GameAction::Pause),
@@ -231,8 +216,10 @@ impl EventHandler for MainState {
     fn controller_button_up_event(&mut self, _ctx: &mut Context, btn: Button, instance_id: i32) {
         debug!("controller_button_up_event - {:?} ({})", btn, instance_id);
 
+        use self::MoveDirection::*;
+
         match btn {
-            Button::DPadLeft | Button::DPadRight => self.add_action(PlayerAction::StopMove),
+            Button::DPadLeft | Button::DPadRight => self.add_action(PlayerAction::from(Stop)),
             Button::DPadDown => self.add_action(PlayerAction::StopDump),
             _ => (),
         }
