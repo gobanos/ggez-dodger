@@ -6,3 +6,6 @@ authors = ["Gregory Obanos <gregory.obanos@gmail.com>"]
 [dependencies]
 ggez = "*"
 rand = "*"
+rand_derive = "*"
+log = "*"
+flexi_logger = "*"
