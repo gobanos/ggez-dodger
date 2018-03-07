@@ -1,6 +1,7 @@
 pub const WIDTH: f32 = 800.0;
 pub const HEIGHT: f32 = 600.0;
 pub const RADIUS: f32 = 32.0;
+pub const TOLERANCE: f32 = 2.0;
 pub const GROUND_HEIGHT: f32 = 100.0;
 
 pub const JUMP_HEIGHT: f32 = 25.0;

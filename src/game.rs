@@ -70,12 +70,10 @@ impl EventHandler for MainState {
 
         self.baddies.retain(|b| b.body.y < HEIGHT);
 
-        let player_rect = self.player.rect();
-
         // used in place of drain_filter...
         let mut i = 0;
         while i != self.baddies.len() {
-            if player_rect.overlaps(&self.baddies[i].body) {
+            if self.player.overlaps(&self.baddies[i].body) {
                 let baddie = self.baddies.remove(i);
                 self.player.collides(&baddie);
             } else {
@@ -101,13 +99,13 @@ impl EventHandler for MainState {
 
         clear(ctx);
 
-        // draw player
-        self.player.draw(&self.resources, ctx)?;
-
         // draw baddies
         for baddie in &self.baddies {
             baddie.draw(&self.resources, ctx)?;
         }
+
+        // draw player
+        self.player.draw(&self.resources, ctx)?;
 
         // draw ground
         set_color(ctx, Color::from_rgb(0, 0, 0))?;

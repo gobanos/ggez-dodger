@@ -139,6 +139,14 @@ impl Player {
         };
     }
 
+    pub fn overlaps(&self, rect: &Rect) -> bool {
+        let radius = RADIUS - TOLERANCE;
+
+        let dx = self.position.x - rect.x.max(self.position.x.min(rect.x + rect.w));
+        let dy = self.position.y - rect.y.max(self.position.y.min(rect.y + rect.h));
+        (dx * dx + dy * dy) < (radius * radius)
+    }
+
     fn wanted_speed(&self) -> f32 {
         use self::MoveDirection::*;
 
