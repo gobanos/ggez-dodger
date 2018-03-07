@@ -1,34 +1,26 @@
 use constants::*;
-use actions::Action;
+use actions::{Action, PlayerAction, GameAction};
 use player::Player;
 use baddies::Baddie;
 use resources::Resources;
 
 use ggez::{graphics, Context, GameResult};
-use ggez::graphics::{Color, DrawMode, DrawParam, Point2, Rect, Text, Vector2};
+use ggez::graphics::{Color, DrawMode, DrawParam, Point2, Rect, Text};
 use ggez::event::{Axis, Button, EventHandler, Keycode, Mod, MouseButton, MouseState};
 
 pub struct MainState {
-    pub player: Player,
-    pub actions: Vec<Action>,
-    pub timer: u32,
-    pub baddies: Vec<Baddie>,
-    pub resources: Resources,
-    pub paused: bool,
+    player: Player,
+    actions: Vec<Action>,
+    timer: u32,
+    baddies: Vec<Baddie>,
+    resources: Resources,
+    paused: bool,
 }
 
 impl MainState {
     pub fn new(ctx: &mut Context) -> GameResult<MainState> {
-        let player = Player {
-            position: Point2::new(WIDTH / 2.0, MAX_Y),
-            speed: Vector2::new(0.0, 0.0),
-            fast_attenuation: false,
-            captured: None,
-            score: 0,
-        };
-
         let s = MainState {
-            player,
+            player: Player::new(Point2::new(WIDTH / 2.0, MAX_Y)),
             actions: Vec::new(),
             baddies: Vec::new(),
             timer: 0,
@@ -38,27 +30,20 @@ impl MainState {
         Ok(s)
     }
 
-    pub fn add_action(&mut self, action: Action) {
-        self.actions.push(action);
+    fn add_action<A: Into<Action>>(&mut self, action: A) {
+        self.actions.push(action.into());
     }
 
-    pub fn process_actions(&mut self, ctx: &mut Context) -> GameResult<()> {
+    fn process_actions(&mut self, ctx: &mut Context) -> GameResult<()> {
         use self::Action::*;
+        use self::GameAction::*;
 
         for &action in &self.actions {
             match action {
-                Pause => self.paused = !self.paused,
-                Quit => ctx.quit()?,
-                _ if self.paused => (),
-                MoveLeft => self.player.speed.x = -PLAYER_SPEED,
-                MoveRight => self.player.speed.x = PLAYER_SPEED,
-                StopMove => self.player.speed.x = 0.0,
-                Jump => {
-                    self.player.speed.y = -JUMP_HEIGHT;
-                    self.player.fast_attenuation = false;
-                }
-                Dump => self.player.fast_attenuation = true,
-                StopDump => self.player.fast_attenuation = false,
+                Game(Pause) => self.paused = !self.paused,
+                Game(Quit) => ctx.quit()?,
+                Player(_) if self.paused => (),
+                Player(a) => self.player.process_action(a)?,
             }
         }
 
@@ -244,7 +229,7 @@ impl EventHandler for MainState {
         );
 
         if keycode == Keycode::Escape {
-            self.add_action(Action::Quit);
+            self.add_action(GameAction::Quit);
         }
     }
 
@@ -263,11 +248,11 @@ impl EventHandler for MainState {
         debug!("controller_button_down_event - {:?} ({})", btn, instance_id);
 
         match btn {
-            Button::DPadLeft => self.add_action(Action::MoveLeft),
-            Button::DPadRight => self.add_action(Action::MoveRight),
-            Button::DPadDown if !self.player.on_the_ground() => self.add_action(Action::Dump),
-            Button::B if self.player.on_the_ground() => self.add_action(Action::Jump),
-            Button::Start => self.add_action(Action::Pause),
+            Button::DPadLeft => self.add_action(PlayerAction::MoveLeft),
+            Button::DPadRight => self.add_action(PlayerAction::MoveRight),
+            Button::DPadDown if !self.player.on_the_ground() => self.add_action(PlayerAction::Dump),
+            Button::B if self.player.on_the_ground() => self.add_action(PlayerAction::Jump),
+            Button::Start => self.add_action(GameAction::Pause),
             _ => (),
         }
     }
@@ -276,8 +261,8 @@ impl EventHandler for MainState {
         debug!("controller_button_up_event - {:?} ({})", btn, instance_id);
 
         match btn {
-            Button::DPadLeft | Button::DPadRight => self.add_action(Action::StopMove),
-            Button::DPadDown => self.add_action(Action::StopDump),
+            Button::DPadLeft | Button::DPadRight => self.add_action(PlayerAction::StopMove),
+            Button::DPadDown => self.add_action(PlayerAction::StopDump),
             _ => (),
         }
     }

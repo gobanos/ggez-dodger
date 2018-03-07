@@ -24,12 +24,12 @@ use ggez::{conf, event, graphics, Context};
 use flexi_logger::Logger;
 
 pub fn main() {
-    Logger::with_env_or_str("ggez_dodger=warn, gfx_device_gl=warn")
+    Logger::with_env_or_str("ggez_dodger=warn")
         .start()
         .unwrap_or_else(|e| panic!("Logger initialization failed with {}", e));
 
     let c = conf::Conf::new();
-    let ctx = &mut Context::load_from_conf("super_simple", "ggez", c).unwrap();
+    let ctx = &mut Context::load_from_conf("dodger", "gobanos", c).unwrap();
 
     // We add the CARGO_MANIFEST_DIR/resources do the filesystems paths so
     // we we look in the cargo project for files.
