@@ -32,7 +32,11 @@ impl Player {
     pub fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
         let wanted = self.wanted_speed();
 
-        let damping = if self.on_the_ground() { PLAYER_DAMPING } else { FLYING_DAMPING };
+        let damping = if self.on_the_ground() {
+            PLAYER_DAMPING
+        } else {
+            FLYING_DAMPING
+        };
         if self.speed.x > wanted {
             self.speed.x = wanted.max(self.speed.x - damping);
         } else {
@@ -126,12 +130,23 @@ impl Player {
     }
 
     pub fn collides(&mut self, baddie: &Baddie) {
+        let Rect { x, y, w, h } = baddie.body;
+        let pos = Point2::new(x + w / 2.0, y + h / 2.0);
+
         self.captured = if let Some((c, f)) = self.captured.take() {
             if c == baddie.color || f == baddie.face {
                 self.score += 1;
                 Some((baddie.color, baddie.face))
             } else {
-                self.score = 0;
+                self.score = self.score.saturating_sub(1);
+
+                let mut dir = self.position - pos;
+                if self.on_the_ground() {
+                    dir.y = 0.0;
+                }
+                let dir = dir.normalize() * (w / 5.0);
+
+                self.speed += dir;
                 None
             }
         } else {

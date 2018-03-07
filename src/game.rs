@@ -180,8 +180,20 @@ impl EventHandler for MainState {
             if repeat { "repeated" } else { "first" }
         );
 
-        if keycode == Keycode::Escape {
-            self.add_action(GameAction::Quit);
+        use self::Keycode::*;
+
+        if repeat {
+            return;
+        }
+
+        match keycode {
+            Escape => self.add_action(GameAction::Quit),
+            Left => self.add_action(PlayerAction::from(MoveDirection::Left)),
+            Right => self.add_action(PlayerAction::from(MoveDirection::Right)),
+            Down if !self.player.on_the_ground() => self.add_action(PlayerAction::Dump),
+            Space if self.player.on_the_ground() => self.add_action(PlayerAction::Jump),
+            P => self.add_action(GameAction::Pause),
+            _ => (),
         }
     }
 
@@ -193,6 +205,14 @@ impl EventHandler for MainState {
             keymod,
             if repeat { "repeated" } else { "first" }
         );
+
+        use self::Keycode::*;
+
+        match keycode {
+            Left | Right => self.add_action(PlayerAction::from(MoveDirection::Stop)),
+            Down => self.add_action(PlayerAction::StopDump),
+            _ => (),
+        }
     }
 
     /// A controller button was pressed; instance_id identifies which controller.
