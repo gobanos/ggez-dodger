@@ -11,4 +11,8 @@ pub const PLAYER_SPEED: f32 = 10.0;
 pub const PLAYER_DAMPING: f32 = 2.0;
 pub const FLYING_DAMPING: f32 = 1.0;
 
+pub const START_PLAYER_LIFE: i32 = 3;
+pub const LIFE_IMAGE_SIZE: i32 = 64;
+pub const LIFE_IMAGE_MARGIN: i32 = 5;
+
 pub const MAX_Y: f32 = HEIGHT - GROUND_HEIGHT - RADIUS;
