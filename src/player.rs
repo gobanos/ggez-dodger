@@ -12,7 +12,7 @@ pub struct Player {
     captured: Option<(BaddieColor, BaddieFace)>,
     score: u32,
     fast_attenuation: bool,
-    current_direction: MoveDirection,
+    current_direction: Option<MoveDirection>,
 }
 
 impl Player {
@@ -23,7 +23,7 @@ impl Player {
             captured: None,
             score: 0,
             fast_attenuation: false,
-            current_direction: MoveDirection::Stop,
+            current_direction: None,
         }
     }
 
@@ -166,9 +166,9 @@ impl Player {
         use self::MoveDirection::*;
 
         match self.current_direction {
-            Stop => 0.0,
-            Left => -PLAYER_SPEED,
-            Right => PLAYER_SPEED,
+            None => 0.0,
+            Some(Left) => -PLAYER_SPEED,
+            Some(Right) => PLAYER_SPEED,
         }
     }
 }

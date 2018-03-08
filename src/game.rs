@@ -4,6 +4,8 @@ use player::Player;
 use baddies::Baddie;
 use resources::Resources;
 
+use std::collections::HashMap;
+
 use ggez::{graphics, timer, Context, GameResult};
 use ggez::graphics::Point2;
 use ggez::event::{Axis, Button, EventHandler, Keycode, Mod, MouseButton, MouseState};
@@ -15,6 +17,7 @@ pub struct MainState {
     baddies: Vec<Baddie>,
     resources: Resources,
     paused: bool,
+    input_stack: HashMap<MoveDirection, u32>,
 }
 
 impl MainState {
@@ -26,6 +29,7 @@ impl MainState {
             timer: 0,
             resources: Resources::new(ctx)?,
             paused: false,
+            input_stack: HashMap::with_capacity(2),
         };
         Ok(s)
     }
@@ -49,6 +53,38 @@ impl MainState {
 
         self.actions.clear();
         Ok(())
+    }
+
+    fn stack_input(&mut self, dir: MoveDirection) {
+        {
+            let n = self.input_stack.entry(dir).or_insert(0);
+            *n = n.saturating_add(1);
+        }
+        self.stack_to_action();
+    }
+
+    fn unstack_input(&mut self, dir: MoveDirection) {
+        {
+            let n = self.input_stack.entry(dir).or_insert(0);
+            *n = n.saturating_sub(1);
+        }
+        self.stack_to_action();
+    }
+
+    fn stack_to_action(&mut self) {
+        let dir = self.input_stack.iter().fold(None, |acc, (&dir, &n)| {
+            if n > 0 {
+                if acc.is_none() {
+                    Some(dir)
+                } else {
+                    None
+                }
+            } else {
+                acc
+            }
+        });
+
+        self.add_action(PlayerAction::Move(dir));
     }
 }
 
@@ -135,6 +171,17 @@ impl EventHandler for MainState {
         }
 
         present(ctx);
+
+        let frame = timer::get_ticks(ctx);
+        if frame % 100 == 0 {
+            info!(
+                "[FRAME {}]: {:0.0} FPS / {:0.2} ms per frame",
+                frame,
+                timer::get_fps(ctx),
+                timer::duration_to_f64(timer::get_average_delta(ctx)) * 1000.0
+            );
+        }
+
         timer::yield_now();
         Ok(())
     }
@@ -188,11 +235,11 @@ impl EventHandler for MainState {
 
         match keycode {
             Escape => self.add_action(GameAction::Quit),
-            Left => self.add_action(PlayerAction::from(MoveDirection::Left)),
-            Right => self.add_action(PlayerAction::from(MoveDirection::Right)),
+            Left => self.stack_input(MoveDirection::Left),
+            Right => self.stack_input(MoveDirection::Right),
             Down if !self.player.on_the_ground() => self.add_action(PlayerAction::Dump),
-            Space if self.player.on_the_ground() => self.add_action(PlayerAction::Jump),
-            P => self.add_action(GameAction::Pause),
+            Up if self.player.on_the_ground() => self.add_action(PlayerAction::Jump),
+            Space => self.add_action(GameAction::Pause),
             _ => (),
         }
     }
@@ -209,7 +256,8 @@ impl EventHandler for MainState {
         use self::Keycode::*;
 
         match keycode {
-            Left | Right => self.add_action(PlayerAction::from(MoveDirection::Stop)),
+            Left => self.unstack_input(MoveDirection::Left),
+            Right => self.unstack_input(MoveDirection::Right),
             Down => self.add_action(PlayerAction::StopDump),
             _ => (),
         }
@@ -222,8 +270,8 @@ impl EventHandler for MainState {
         use self::MoveDirection::*;
 
         match btn {
-            Button::DPadLeft => self.add_action(PlayerAction::from(Left)),
-            Button::DPadRight => self.add_action(PlayerAction::from(Right)),
+            Button::DPadLeft => self.stack_input(Left),
+            Button::DPadRight => self.stack_input(Right),
             Button::DPadDown if !self.player.on_the_ground() => self.add_action(PlayerAction::Dump),
             Button::B if self.player.on_the_ground() => self.add_action(PlayerAction::Jump),
             Button::Start => self.add_action(GameAction::Pause),
@@ -237,7 +285,8 @@ impl EventHandler for MainState {
         use self::MoveDirection::*;
 
         match btn {
-            Button::DPadLeft | Button::DPadRight => self.add_action(PlayerAction::from(Stop)),
+            Button::DPadLeft => self.unstack_input(Left),
+            Button::DPadRight => self.unstack_input(Right),
             Button::DPadDown => self.add_action(PlayerAction::StopDump),
             _ => (),
         }

@@ -6,7 +6,7 @@ pub enum Action {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum PlayerAction {
-    Move(MoveDirection),
+    Move(Option<MoveDirection>),
     Jump,
     Dump,
     StopDump,
@@ -20,13 +20,12 @@ impl Into<Action> for PlayerAction {
 
 impl From<MoveDirection> for PlayerAction {
     fn from(dir: MoveDirection) -> PlayerAction {
-        PlayerAction::Move(dir)
+        PlayerAction::Move(Some(dir))
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum MoveDirection {
-    Stop,
     Left,
     Right,
 }
