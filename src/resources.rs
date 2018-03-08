@@ -1,13 +1,13 @@
 use baddies::BaddieFace;
-
-use std::collections::HashMap;
-
 use ggez::{Context, GameResult};
 use ggez::graphics::{Font, Image};
+use std::collections::HashMap;
 
+// Struct containing the hard-coded resources of the game
 pub struct Resources {
     pub baddies_bg: Image,
     pub baddies_faces: HashMap<BaddieFace, Image>,
+    pub life: Image,
     pub font: Font,
 }
 
@@ -24,6 +24,7 @@ impl Resources {
         Ok(Resources {
             baddies_bg: Image::new(ctx, "/white.png")?,
             baddies_faces,
+            life: Image::new(ctx, "/life.png")?,
             font: Font::new(ctx, "/DejaVuSerif.ttf", 48)?,
         })
     }

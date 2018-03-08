@@ -1,16 +1,16 @@
-use constants::*;
-use baddies::{Baddie, BaddieColor, BaddieFace};
 use actions::{MoveDirection, PlayerAction};
-use resources::Resources;
-
+use baddies::{Baddie, BaddieColor, BaddieFace};
+use constants::*;
 use ggez::{Context, GameResult};
 use graphics::{self, Point2, Rect, Vector2};
+use resources::Resources;
 
 pub struct Player {
     position: Point2,
     speed: Vector2,
     captured: Option<(BaddieColor, BaddieFace)>,
     score: u32,
+    life: i32,
     fast_attenuation: bool,
     current_direction: Option<MoveDirection>,
     shielded: bool,
@@ -23,6 +23,7 @@ impl Player {
             speed: Vector2::new(0.0, 0.0),
             captured: None,
             score: 0,
+            life: START_PLAYER_LIFE,
             fast_attenuation: false,
             current_direction: None,
             shielded: false,
@@ -103,6 +104,14 @@ impl Player {
         let text = Text::new(ctx, &format!("SCORE: {}", self.score), &res.font)?;
         draw(ctx, &text, Point2::new(10.0, 10.0), 0.0)?;
 
+        // draw lifes
+        (0..self.life).for_each(|i| {
+            let y: f32 = LIFE_IMAGE_MARGIN as f32;
+            let x = (ctx.conf.window_mode.width as i32 - (i + 1) * LIFE_IMAGE_SIZE
+                + LIFE_IMAGE_MARGIN) as f32;
+            draw(ctx, &res.life, Point2::new(x, y), 0.);
+        });
+
         Ok(())
     }
 
@@ -157,6 +166,7 @@ impl Player {
                 let dir = dir.normalize() * (w / 5.0);
 
                 self.speed += dir;
+                self.life -= 1;
                 None
             }
         } else {

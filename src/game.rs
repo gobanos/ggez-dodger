@@ -1,14 +1,12 @@
-use constants::*;
 use actions::{Action, GameAction, MoveDirection, PlayerAction};
-use player::Player;
 use baddies::Baddie;
-use resources::Resources;
-
-use std::collections::HashMap;
-
+use constants::*;
 use ggez::{graphics, timer, Context, GameResult};
-use ggez::graphics::Point2;
 use ggez::event::{Axis, Button, EventHandler, Keycode, Mod, MouseButton, MouseState};
+use ggez::graphics::Point2;
+use player::Player;
+use resources::Resources;
+use std::collections::HashMap;
 
 pub struct MainState {
     player: Player,
