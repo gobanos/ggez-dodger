@@ -10,6 +10,8 @@ pub enum PlayerAction {
     Jump,
     Dump,
     StopDump,
+    Shield,
+    StopShield,
 }
 
 impl Into<Action> for PlayerAction {

@@ -13,6 +13,7 @@ pub struct Player {
     score: u32,
     fast_attenuation: bool,
     current_direction: Option<MoveDirection>,
+    shielded: bool,
 }
 
 impl Player {
@@ -24,6 +25,7 @@ impl Player {
             score: 0,
             fast_attenuation: false,
             current_direction: None,
+            shielded: false,
         }
     }
 
@@ -86,6 +88,10 @@ impl Player {
             circle(ctx, DrawMode::Fill, self.position, RADIUS, 0.1)?;
         }
 
+        if self.shielded {
+            circle(ctx, DrawMode::Line(1.0), self.position, RADIUS + 5.0, 0.1)?;
+        }
+
         Ok(())
     }
 
@@ -124,12 +130,18 @@ impl Player {
             }
             Dump => self.fast_attenuation = true,
             StopDump => self.fast_attenuation = false,
+            Shield => self.shielded = true,
+            StopShield => self.shielded = false,
         }
 
         Ok(())
     }
 
     pub fn collides(&mut self, baddie: &Baddie) {
+        if self.shielded {
+            return;
+        }
+
         let Rect { x, y, w, h } = baddie.body;
         let pos = Point2::new(x + w / 2.0, y + h / 2.0);
 
@@ -155,7 +167,7 @@ impl Player {
     }
 
     pub fn overlaps(&self, rect: &Rect) -> bool {
-        let radius = RADIUS - TOLERANCE;
+        let radius = RADIUS - TOLERANCE + if self.shielded { 5.0 } else { 0.0 };
 
         let dx = self.position.x - rect.x.max(self.position.x.min(rect.x + rect.w));
         let dy = self.position.y - rect.y.max(self.position.y.min(rect.y + rect.h));

@@ -240,6 +240,7 @@ impl EventHandler for MainState {
             Down if !self.player.on_the_ground() => self.add_action(PlayerAction::Dump),
             Up if self.player.on_the_ground() => self.add_action(PlayerAction::Jump),
             Space => self.add_action(GameAction::Pause),
+            RCtrl => self.add_action(PlayerAction::Shield),
             _ => (),
         }
     }
@@ -259,6 +260,7 @@ impl EventHandler for MainState {
             Left => self.unstack_input(MoveDirection::Left),
             Right => self.unstack_input(MoveDirection::Right),
             Down => self.add_action(PlayerAction::StopDump),
+            RCtrl => self.add_action(PlayerAction::StopShield),
             _ => (),
         }
     }
@@ -274,6 +276,7 @@ impl EventHandler for MainState {
             Button::DPadRight => self.stack_input(Right),
             Button::DPadDown if !self.player.on_the_ground() => self.add_action(PlayerAction::Dump),
             Button::B if self.player.on_the_ground() => self.add_action(PlayerAction::Jump),
+            Button::A => self.add_action(PlayerAction::Shield),
             Button::Start => self.add_action(GameAction::Pause),
             _ => (),
         }
@@ -288,6 +291,7 @@ impl EventHandler for MainState {
             Button::DPadLeft => self.unstack_input(Left),
             Button::DPadRight => self.unstack_input(Right),
             Button::DPadDown => self.add_action(PlayerAction::StopDump),
+            Button::A => self.add_action(PlayerAction::StopShield),
             _ => (),
         }
     }
