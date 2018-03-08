@@ -8,10 +8,8 @@ pub enum Action {
 pub enum PlayerAction {
     Move(Option<MoveDirection>),
     Jump,
-    Dump,
-    StopDump,
-    Shield,
-    StopShield,
+    Dump(bool),
+    Shield(bool),
 }
 
 impl Into<Action> for PlayerAction {

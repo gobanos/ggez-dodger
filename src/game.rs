@@ -237,10 +237,10 @@ impl EventHandler for MainState {
             Escape => self.add_action(GameAction::Quit),
             Left => self.stack_input(MoveDirection::Left),
             Right => self.stack_input(MoveDirection::Right),
-            Down if !self.player.on_the_ground() => self.add_action(PlayerAction::Dump),
+            Down if !self.player.on_the_ground() => self.add_action(PlayerAction::Dump(true)),
             Up if self.player.on_the_ground() => self.add_action(PlayerAction::Jump),
             Space => self.add_action(GameAction::Pause),
-            RCtrl => self.add_action(PlayerAction::Shield),
+            RCtrl => self.add_action(PlayerAction::Shield(true)),
             _ => (),
         }
     }
@@ -259,8 +259,8 @@ impl EventHandler for MainState {
         match keycode {
             Left => self.unstack_input(MoveDirection::Left),
             Right => self.unstack_input(MoveDirection::Right),
-            Down => self.add_action(PlayerAction::StopDump),
-            RCtrl => self.add_action(PlayerAction::StopShield),
+            Down => self.add_action(PlayerAction::Dump(false)),
+            RCtrl => self.add_action(PlayerAction::Shield(false)),
             _ => (),
         }
     }
@@ -274,9 +274,11 @@ impl EventHandler for MainState {
         match btn {
             Button::DPadLeft => self.stack_input(Left),
             Button::DPadRight => self.stack_input(Right),
-            Button::DPadDown if !self.player.on_the_ground() => self.add_action(PlayerAction::Dump),
+            Button::DPadDown if !self.player.on_the_ground() => {
+                self.add_action(PlayerAction::Dump(true))
+            }
             Button::B if self.player.on_the_ground() => self.add_action(PlayerAction::Jump),
-            Button::A => self.add_action(PlayerAction::Shield),
+            Button::A => self.add_action(PlayerAction::Shield(true)),
             Button::Start => self.add_action(GameAction::Pause),
             _ => (),
         }
@@ -290,8 +292,8 @@ impl EventHandler for MainState {
         match btn {
             Button::DPadLeft => self.unstack_input(Left),
             Button::DPadRight => self.unstack_input(Right),
-            Button::DPadDown => self.add_action(PlayerAction::StopDump),
-            Button::A => self.add_action(PlayerAction::StopShield),
+            Button::DPadDown => self.add_action(PlayerAction::Dump(false)),
+            Button::A => self.add_action(PlayerAction::Shield(false)),
             _ => (),
         }
     }

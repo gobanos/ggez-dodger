@@ -128,10 +128,8 @@ impl Player {
                 self.speed.y = -JUMP_HEIGHT;
                 self.fast_attenuation = false;
             }
-            Dump => self.fast_attenuation = true,
-            StopDump => self.fast_attenuation = false,
-            Shield => self.shielded = true,
-            StopShield => self.shielded = false,
+            Dump(dump) => self.fast_attenuation = dump,
+            Shield(shield) => self.shielded = shield,
         }
 
         Ok(())
