@@ -10,14 +10,27 @@ use std::collections::HashMap;
 
 pub type ControllerId = i32;
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub enum PlayerId {
+    Arrows,
+    ZQSD,
+    Controller(ControllerId),
+}
+
+impl From<ControllerId> for PlayerId {
+    fn from(id: ControllerId) -> Self {
+        PlayerId::Controller(id)
+    }
+}
+
 pub struct MainState {
-    players: HashMap<ControllerId, Player>,
+    players: HashMap<PlayerId, Player>,
     actions: Vec<Action>,
     timer: u32,
     baddies: Vec<Baddie>,
     resources: Resources,
     paused: bool,
-    input_stack: HashMap<(MoveDirection, ControllerId), u32>,
+    input_stack: HashMap<(MoveDirection, PlayerId), u32>,
 }
 
 impl MainState {
@@ -60,7 +73,7 @@ impl MainState {
         Ok(())
     }
 
-    fn stack_input(&mut self, dir: MoveDirection, instance_id: ControllerId) {
+    fn stack_input(&mut self, dir: MoveDirection, instance_id: PlayerId) {
         {
             let n = self.input_stack.entry((dir, instance_id)).or_insert(0);
             *n = n.saturating_add(1);
@@ -68,7 +81,7 @@ impl MainState {
         self.stack_to_action();
     }
 
-    fn unstack_input(&mut self, dir: MoveDirection, instance_id: ControllerId) {
+    fn unstack_input(&mut self, dir: MoveDirection, instance_id: PlayerId) {
         {
             let n = self.input_stack.entry((dir, instance_id)).or_insert(0);
             *n = n.saturating_sub(1);
@@ -258,14 +271,48 @@ impl EventHandler for MainState {
             return;
         }
 
+        let (with_arrows, arrows_on_the_ground) = {
+            let player = self.players.get(&PlayerId::Arrows);
+            let with_player = player.is_some();
+            let on_the_ground = player.map(|p| p.on_the_ground()).unwrap_or(false);
+
+            (with_player, on_the_ground)
+        };
+        let (with_zqsd, zqsd_on_the_ground) = {
+            let player = self.players.get(&PlayerId::ZQSD);
+            let with_player = player.is_some();
+            let on_the_ground = player.map(|p| p.on_the_ground()).unwrap_or(false);
+
+            (with_player, on_the_ground)
+        };
+
         match keycode {
             Escape => self.add_action(GameAction::Quit),
-            //            Left => self.stack_input(MoveDirection::Left),
-            //            Right => self.stack_input(MoveDirection::Right),
-            //            Down if !self.player.on_the_ground() => self.add_action(PlayerAction::Dump(true)),
-            //            Up if self.player.on_the_ground() => self.add_action(PlayerAction::Jump),
-            //            Space => self.add_action(GameAction::Pause),
-            //            RCtrl => self.add_action(PlayerAction::Shield(true)),
+            Space => self.add_action(GameAction::Pause),
+
+            // ARROWS
+            Left if with_arrows => self.stack_input(MoveDirection::Left, PlayerId::Arrows),
+            Right if with_arrows => self.stack_input(MoveDirection::Right, PlayerId::Arrows),
+            Down if with_arrows && !arrows_on_the_ground => {
+                self.add_action((PlayerAction::Dump(true), PlayerId::Arrows))
+            }
+            Up if with_arrows && arrows_on_the_ground => {
+                self.add_action((PlayerAction::Jump, PlayerId::Arrows))
+            }
+            RCtrl if with_arrows => self.add_action((PlayerAction::Shield(true), PlayerId::Arrows)),
+            Return => self.add_action(GameAction::Spawn(PlayerId::Arrows)),
+
+            // ZQSD
+            Q if with_zqsd => self.stack_input(MoveDirection::Left, PlayerId::ZQSD),
+            D if with_zqsd => self.stack_input(MoveDirection::Right, PlayerId::ZQSD),
+            S if with_zqsd && !zqsd_on_the_ground => {
+                self.add_action((PlayerAction::Dump(true), PlayerId::ZQSD))
+            }
+            Z if with_zqsd && zqsd_on_the_ground => {
+                self.add_action((PlayerAction::Jump, PlayerId::ZQSD))
+            }
+            LShift if with_zqsd => self.add_action((PlayerAction::Shield(true), PlayerId::ZQSD)),
+            LCtrl => self.add_action(GameAction::Spawn(PlayerId::ZQSD)),
             _ => (),
         }
     }
@@ -279,13 +326,25 @@ impl EventHandler for MainState {
             if repeat { "repeated" } else { "first" }
         );
 
-        //        use self::Keycode::*;
+        use self::Keycode::*;
+
+        let with_arrows = self.players.contains_key(&PlayerId::Arrows);
+        let with_zqsd = self.players.contains_key(&PlayerId::ZQSD);
 
         match keycode {
-            //            Left => self.unstack_input(MoveDirection::Left),
-            //            Right => self.unstack_input(MoveDirection::Right),
-            //            Down => self.add_action(PlayerAction::Dump(false)),
-            //            RCtrl => self.add_action(PlayerAction::Shield(false)),
+            // ARROWS
+            Left if with_arrows => self.unstack_input(MoveDirection::Left, PlayerId::Arrows),
+            Right if with_arrows => self.unstack_input(MoveDirection::Right, PlayerId::Arrows),
+            Down if with_arrows => self.add_action((PlayerAction::Dump(false), PlayerId::Arrows)),
+            RCtrl if with_arrows => {
+                self.add_action((PlayerAction::Shield(false), PlayerId::Arrows))
+            }
+
+            // ZQSD
+            Q if with_zqsd => self.unstack_input(MoveDirection::Left, PlayerId::ZQSD),
+            D if with_zqsd => self.unstack_input(MoveDirection::Right, PlayerId::ZQSD),
+            S if with_zqsd => self.add_action((PlayerAction::Dump(false), PlayerId::ZQSD)),
+            LShift if with_zqsd => self.add_action((PlayerAction::Shield(false), PlayerId::ZQSD)),
             _ => (),
         }
     }
@@ -302,7 +361,7 @@ impl EventHandler for MainState {
         use self::MoveDirection::*;
 
         let (with_player, on_the_ground) = {
-            let player = self.players.get(&instance_id);
+            let player = self.players.get(&instance_id.into());
             let with_player = player.is_some();
             let on_the_ground = player.map(|p| p.on_the_ground()).unwrap_or(false);
 
@@ -310,17 +369,17 @@ impl EventHandler for MainState {
         };
 
         match (btn, with_player) {
-            (Button::DPadLeft, true) => self.stack_input(Left, instance_id),
-            (Button::DPadRight, true) => self.stack_input(Right, instance_id),
+            (Button::DPadLeft, true) => self.stack_input(Left, instance_id.into()),
+            (Button::DPadRight, true) => self.stack_input(Right, instance_id.into()),
             (Button::DPadDown, true) if !on_the_ground => {
-                self.add_action((PlayerAction::Dump(true), instance_id))
+                self.add_action((PlayerAction::Dump(true), instance_id.into()))
             }
             (Button::B, true) if on_the_ground => {
-                self.add_action((PlayerAction::Jump, instance_id))
+                self.add_action((PlayerAction::Jump, instance_id.into()))
             }
-            (Button::A, true) => self.add_action((PlayerAction::Shield(true), instance_id)),
+            (Button::A, true) => self.add_action((PlayerAction::Shield(true), instance_id.into())),
             (Button::Start, _) => self.add_action(GameAction::Pause),
-            (Button::Back, _) => self.add_action(GameAction::Spawn(instance_id)),
+            (Button::Back, _) => self.add_action(GameAction::Spawn(instance_id.into())),
             _ => (),
         }
     }
@@ -335,13 +394,15 @@ impl EventHandler for MainState {
 
         use self::MoveDirection::*;
 
-        let with_player = self.players.contains_key(&instance_id);
+        let with_player = self.players.contains_key(&instance_id.into());
 
         match (btn, with_player) {
-            (Button::DPadLeft, true) => self.unstack_input(Left, instance_id),
-            (Button::DPadRight, true) => self.unstack_input(Right, instance_id),
-            (Button::DPadDown, true) => self.add_action((PlayerAction::Dump(false), instance_id)),
-            (Button::A, true) => self.add_action((PlayerAction::Shield(false), instance_id)),
+            (Button::DPadLeft, true) => self.unstack_input(Left, instance_id.into()),
+            (Button::DPadRight, true) => self.unstack_input(Right, instance_id.into()),
+            (Button::DPadDown, true) => {
+                self.add_action((PlayerAction::Dump(false), instance_id.into()))
+            }
+            (Button::A, true) => self.add_action((PlayerAction::Shield(false), instance_id.into())),
             _ => (),
         }
     }

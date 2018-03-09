@@ -101,12 +101,16 @@ impl Player {
     pub fn draw_ui(&self, res: &Resources, nb_players: usize, ctx: &mut Context) -> GameResult<()> {
         use self::graphics::*;
 
-        let max_width = WIDTH / nb_players as f32;
-        let start_x = max_width * f32::from(self.index);
+        let col = f32::from(self.index % 2);
+        let line = f32::from(self.index / 2);
+
+        let max_width = WIDTH / nb_players.min(2) as f32;
+        let start_x = max_width * col;
+        let start_y = (LIFE_IMAGE_SIZE + UI_MARGIN) * line;
 
         // draw thumb
         let radius = LIFE_IMAGE_SIZE / 2.0;
-        let pos = Point2::new(start_x + UI_MARGIN + radius, UI_MARGIN + radius);
+        let pos = Point2::new(start_x + UI_MARGIN + radius, start_y + UI_MARGIN + radius);
 
         if let Some((color, face)) = self.captured {
             set_color(ctx, color.into())?;
@@ -117,7 +121,7 @@ impl Player {
             let scale = Point2::new(LIFE_IMAGE_SIZE / iw, LIFE_IMAGE_SIZE / ih);
 
             let params = DrawParam {
-                dest: Point2::new(start_x + UI_MARGIN, UI_MARGIN),
+                dest: Point2::new(start_x + UI_MARGIN, start_y + UI_MARGIN),
                 scale,
                 ..Default::default()
             };
@@ -139,7 +143,10 @@ impl Player {
         draw(
             ctx,
             &text,
-            Point2::new(start_x + UI_MARGIN * 2.0 + LIFE_IMAGE_SIZE, UI_MARGIN),
+            Point2::new(
+                start_x + UI_MARGIN * 2.0 + LIFE_IMAGE_SIZE,
+                start_y + UI_MARGIN,
+            ),
             0.0,
         )?;
 
@@ -147,7 +154,8 @@ impl Player {
         (0..self.life).for_each(|i| {
             let i = (i + 1) as f32;
             let x = start_x + max_width - i * (LIFE_IMAGE_SIZE + UI_MARGIN);
-            draw(ctx, &res.life, Point2::new(x, UI_MARGIN), 0.0).expect("Failed to draw a heart");
+            draw(ctx, &res.life, Point2::new(x, start_y + UI_MARGIN), 0.0)
+                .expect("Failed to draw a heart");
         });
 
         Ok(())
