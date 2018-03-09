@@ -8,20 +8,22 @@ use player::Player;
 use resources::Resources;
 use std::collections::HashMap;
 
+pub type ControllerId = i32;
+
 pub struct MainState {
-    player: Player,
+    players: HashMap<ControllerId, Player>,
     actions: Vec<Action>,
     timer: u32,
     baddies: Vec<Baddie>,
     resources: Resources,
     paused: bool,
-    input_stack: HashMap<MoveDirection, u32>,
+    input_stack: HashMap<(MoveDirection, ControllerId), u32>,
 }
 
 impl MainState {
     pub fn new(ctx: &mut Context) -> GameResult<MainState> {
         let s = MainState {
-            player: Player::new(Point2::new(WIDTH / 2.0, MAX_Y)),
+            players: HashMap::new(),
             actions: Vec::new(),
             baddies: Vec::new(),
             timer: 0,
@@ -37,15 +39,19 @@ impl MainState {
     }
 
     fn process_actions(&mut self, ctx: &mut Context) -> GameResult<()> {
-        use self::Action::*;
         use self::GameAction::*;
 
         for &action in &self.actions {
             match action {
-                Game(Pause) => self.paused = !self.paused,
-                Game(Quit) => ctx.quit()?,
-                Player(_) if self.paused => (),
-                Player(a) => self.player.process_action(a)?,
+                Action::Game(Pause) => self.paused = !self.paused,
+                Action::Game(Quit) => ctx.quit()?,
+                Action::Game(Spawn(id)) => {
+                    self.players
+                        .entry(id)
+                        .or_insert_with(|| Player::new(Point2::new(WIDTH / 2.0, MAX_Y)));
+                }
+                Action::Player(_, _) if self.paused => (),
+                Action::Player(a, id) => self.players.get_mut(&id).unwrap().process_action(a)?,
             }
         }
 
@@ -53,36 +59,45 @@ impl MainState {
         Ok(())
     }
 
-    fn stack_input(&mut self, dir: MoveDirection) {
+    fn stack_input(&mut self, dir: MoveDirection, instance_id: ControllerId) {
         {
-            let n = self.input_stack.entry(dir).or_insert(0);
+            let n = self.input_stack.entry((dir, instance_id)).or_insert(0);
             *n = n.saturating_add(1);
         }
         self.stack_to_action();
     }
 
-    fn unstack_input(&mut self, dir: MoveDirection) {
+    fn unstack_input(&mut self, dir: MoveDirection, instance_id: ControllerId) {
         {
-            let n = self.input_stack.entry(dir).or_insert(0);
+            let n = self.input_stack.entry((dir, instance_id)).or_insert(0);
             *n = n.saturating_sub(1);
         }
         self.stack_to_action();
     }
 
     fn stack_to_action(&mut self) {
-        let dir = self.input_stack.iter().fold(None, |acc, (&dir, &n)| {
-            if n > 0 {
-                if acc.is_none() {
-                    Some(dir)
-                } else {
-                    None
+        let dir = self.input_stack
+            .iter()
+            .fold(HashMap::new(), |mut acc, (&(dir, id), &n)| {
+                {
+                    let cur = acc.entry(id).or_insert(None);
+                    *cur = if n > 0 {
+                        if cur.is_none() {
+                            Some(dir)
+                        } else {
+                            None
+                        }
+                    } else {
+                        *cur
+                    };
                 }
-            } else {
-                acc
-            }
-        });
 
-        self.add_action(PlayerAction::Move(dir));
+                acc
+            });
+
+        for (id, d) in dir {
+            self.add_action((PlayerAction::Move(d), id));
+        }
     }
 }
 
@@ -96,7 +111,9 @@ impl EventHandler for MainState {
             return Ok(());
         }
 
-        self.player.update(ctx)?;
+        for p in self.players.values_mut() {
+            p.update(ctx)?;
+        }
 
         if self.timer % 10 == 0 {
             self.baddies.push(Baddie::new());
@@ -107,9 +124,13 @@ impl EventHandler for MainState {
         // used in place of drain_filter...
         let mut i = 0;
         while i != self.baddies.len() {
-            if self.player.overlaps(&self.baddies[i].body) {
+            if let Some((&id, _)) = self.players
+                .iter()
+                .find(|&(_, p)| p.overlaps(&self.baddies[i].body))
+            {
                 let baddie = self.baddies.remove(i);
-                self.player.collides(&baddie);
+                self.add_action((PlayerAction::Collides(baddie), id));
+                break;
             } else {
                 i += 1;
             }
@@ -139,7 +160,9 @@ impl EventHandler for MainState {
         }
 
         // draw player
-        self.player.draw(&self.resources, ctx)?;
+        for p in self.players.values() {
+            p.draw(&self.resources, ctx)?;
+        }
 
         // draw ground
         set_color(ctx, Color::from_rgb(0, 0, 0))?;
@@ -149,7 +172,9 @@ impl EventHandler for MainState {
             Rect::new(0.0, HEIGHT - GROUND_HEIGHT, WIDTH, GROUND_HEIGHT),
         )?;
 
-        self.player.draw_ui(&self.resources, ctx)?;
+        for p in self.players.values() {
+            p.draw_ui(&self.resources, ctx)?;
+        }
 
         // draw paused
         if self.paused {
@@ -233,12 +258,12 @@ impl EventHandler for MainState {
 
         match keycode {
             Escape => self.add_action(GameAction::Quit),
-            Left => self.stack_input(MoveDirection::Left),
-            Right => self.stack_input(MoveDirection::Right),
-            Down if !self.player.on_the_ground() => self.add_action(PlayerAction::Dump(true)),
-            Up if self.player.on_the_ground() => self.add_action(PlayerAction::Jump),
-            Space => self.add_action(GameAction::Pause),
-            RCtrl => self.add_action(PlayerAction::Shield(true)),
+            //            Left => self.stack_input(MoveDirection::Left),
+            //            Right => self.stack_input(MoveDirection::Right),
+            //            Down if !self.player.on_the_ground() => self.add_action(PlayerAction::Dump(true)),
+            //            Up if self.player.on_the_ground() => self.add_action(PlayerAction::Jump),
+            //            Space => self.add_action(GameAction::Pause),
+            //            RCtrl => self.add_action(PlayerAction::Shield(true)),
             _ => (),
         }
     }
@@ -252,46 +277,69 @@ impl EventHandler for MainState {
             if repeat { "repeated" } else { "first" }
         );
 
-        use self::Keycode::*;
+        //        use self::Keycode::*;
 
         match keycode {
-            Left => self.unstack_input(MoveDirection::Left),
-            Right => self.unstack_input(MoveDirection::Right),
-            Down => self.add_action(PlayerAction::Dump(false)),
-            RCtrl => self.add_action(PlayerAction::Shield(false)),
+            //            Left => self.unstack_input(MoveDirection::Left),
+            //            Right => self.unstack_input(MoveDirection::Right),
+            //            Down => self.add_action(PlayerAction::Dump(false)),
+            //            RCtrl => self.add_action(PlayerAction::Shield(false)),
             _ => (),
         }
     }
 
     /// A controller button was pressed; instance_id identifies which controller.
-    fn controller_button_down_event(&mut self, _ctx: &mut Context, btn: Button, instance_id: i32) {
+    fn controller_button_down_event(
+        &mut self,
+        _ctx: &mut Context,
+        btn: Button,
+        instance_id: ControllerId,
+    ) {
         debug!("controller_button_down_event - {:?} ({})", btn, instance_id);
 
         use self::MoveDirection::*;
 
-        match btn {
-            Button::DPadLeft => self.stack_input(Left),
-            Button::DPadRight => self.stack_input(Right),
-            Button::DPadDown if !self.player.on_the_ground() => {
-                self.add_action(PlayerAction::Dump(true))
+        let (with_player, on_the_ground) = {
+            let player = self.players.get(&instance_id);
+            let with_player = player.is_some();
+            let on_the_ground = player.map(|p| p.on_the_ground()).unwrap_or(false);
+
+            (with_player, on_the_ground)
+        };
+
+        match (btn, with_player) {
+            (Button::DPadLeft, true) => self.stack_input(Left, instance_id),
+            (Button::DPadRight, true) => self.stack_input(Right, instance_id),
+            (Button::DPadDown, true) if !on_the_ground => {
+                self.add_action((PlayerAction::Dump(true), instance_id))
             }
-            Button::B if self.player.on_the_ground() => self.add_action(PlayerAction::Jump),
-            Button::A => self.add_action(PlayerAction::Shield(true)),
-            Button::Start => self.add_action(GameAction::Pause),
+            (Button::B, true) if on_the_ground => {
+                self.add_action((PlayerAction::Jump, instance_id))
+            }
+            (Button::A, true) => self.add_action((PlayerAction::Shield(true), instance_id)),
+            (Button::Start, _) => self.add_action(GameAction::Pause),
+            (Button::Back, _) => self.add_action(GameAction::Spawn(instance_id)),
             _ => (),
         }
     }
     /// A controller button was released.
-    fn controller_button_up_event(&mut self, _ctx: &mut Context, btn: Button, instance_id: i32) {
+    fn controller_button_up_event(
+        &mut self,
+        _ctx: &mut Context,
+        btn: Button,
+        instance_id: ControllerId,
+    ) {
         debug!("controller_button_up_event - {:?} ({})", btn, instance_id);
 
         use self::MoveDirection::*;
 
-        match btn {
-            Button::DPadLeft => self.unstack_input(Left),
-            Button::DPadRight => self.unstack_input(Right),
-            Button::DPadDown => self.add_action(PlayerAction::Dump(false)),
-            Button::A => self.add_action(PlayerAction::Shield(false)),
+        let with_player = self.players.contains_key(&instance_id);
+
+        match (btn, with_player) {
+            (Button::DPadLeft, true) => self.unstack_input(Left, instance_id),
+            (Button::DPadRight, true) => self.unstack_input(Right, instance_id),
+            (Button::DPadDown, true) => self.add_action((PlayerAction::Dump(false), instance_id)),
+            (Button::A, true) => self.add_action((PlayerAction::Shield(false), instance_id)),
             _ => (),
         }
     }
@@ -301,7 +349,7 @@ impl EventHandler for MainState {
         _ctx: &mut Context,
         axis: Axis,
         value: i16,
-        instance_id: i32,
+        instance_id: ControllerId,
     ) {
         debug!(
             "controller_axis_event - {:?}[{}] ({})",
