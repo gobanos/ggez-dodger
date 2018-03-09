@@ -139,6 +139,7 @@ impl Player {
             }
             Dump(dump) => self.fast_attenuation = dump,
             Shield(shield) => self.shielded = shield,
+            Collides(baddie) => self.collides(&baddie),
         }
 
         Ok(())

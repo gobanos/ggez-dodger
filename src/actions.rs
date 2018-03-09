@@ -1,20 +1,24 @@
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+use baddies::Baddie;
+use game::ControllerId;
+
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Action {
     Game(GameAction),
-    Player(PlayerAction),
+    Player(PlayerAction, ControllerId),
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum PlayerAction {
     Move(Option<MoveDirection>),
     Jump,
     Dump(bool),
     Shield(bool),
+    Collides(Baddie),
 }
 
-impl Into<Action> for PlayerAction {
+impl Into<Action> for (PlayerAction, ControllerId) {
     fn into(self) -> Action {
-        Action::Player(self)
+        Action::Player(self.0, self.1)
     }
 }
 
@@ -34,6 +38,7 @@ pub enum MoveDirection {
 pub enum GameAction {
     Pause,
     Quit,
+    Spawn(ControllerId),
 }
 
 impl Into<Action> for GameAction {

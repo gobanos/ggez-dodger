@@ -6,6 +6,7 @@ use graphics::{self, Color, Rect, Vector2};
 use rand::{thread_rng, Rng};
 use rand::distributions::{Range, Sample};
 
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Baddie {
     pub body: Rect,
     pub color: BaddieColor,
