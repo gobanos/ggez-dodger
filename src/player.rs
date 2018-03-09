@@ -109,7 +109,7 @@ impl Player {
             let y: f32 = LIFE_IMAGE_MARGIN as f32;
             let x = (ctx.conf.window_mode.width as i32 - (i + 1) * LIFE_IMAGE_SIZE
                 + LIFE_IMAGE_MARGIN) as f32;
-            draw(ctx, &res.life, Point2::new(x, y), 0.);
+            draw(ctx, &res.life, Point2::new(x, y), 0.0).expect("Failed to draw a heart");
         });
 
         Ok(())
