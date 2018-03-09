@@ -1,6 +1,6 @@
 use baddies::BaddieFace;
 use ggez::{Context, GameResult};
-use ggez::graphics::{Font, Image};
+use ggez::graphics::{Font, Image, Text};
 use std::collections::HashMap;
 
 // Struct containing the hard-coded resources of the game
@@ -9,6 +9,8 @@ pub struct Resources {
     pub baddies_faces: HashMap<BaddieFace, Image>,
     pub life: Image,
     pub font: Font,
+    pub pause: Text,
+    pub waiting: Text,
 }
 
 impl Resources {
@@ -21,11 +23,15 @@ impl Resources {
         baddies_faces.insert(BaddieFace::Sick, Image::new(ctx, "/sick.png")?);
         baddies_faces.insert(BaddieFace::Wink, Image::new(ctx, "/wink.png")?);
 
+        let font = Font::new(ctx, "/DejaVuSerif.ttf", 25)?;
+
         Ok(Resources {
             baddies_bg: Image::new(ctx, "/white.png")?,
             baddies_faces,
             life: Image::new(ctx, "/life.png")?,
-            font: Font::new(ctx, "/DejaVuSerif.ttf", 48)?,
+            pause: Text::new(ctx, "PAUSED", &font)?,
+            waiting: Text::new(ctx, "WAITING FOR A PLAYER", &font)?,
+            font,
         })
     }
 }

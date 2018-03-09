@@ -14,10 +14,11 @@ pub struct Player {
     fast_attenuation: bool,
     current_direction: Option<MoveDirection>,
     shielded: bool,
+    index: u8,
 }
 
 impl Player {
-    pub fn new(position: Point2) -> Player {
+    pub fn new(index: u8, position: Point2) -> Player {
         Player {
             position,
             speed: Vector2::new(0.0, 0.0),
@@ -27,6 +28,7 @@ impl Player {
             fast_attenuation: false,
             current_direction: None,
             shielded: false,
+            index,
         }
     }
 
@@ -96,20 +98,56 @@ impl Player {
         Ok(())
     }
 
-    pub fn draw_ui(&self, res: &Resources, ctx: &mut Context) -> GameResult<()> {
+    pub fn draw_ui(&self, res: &Resources, nb_players: usize, ctx: &mut Context) -> GameResult<()> {
         use self::graphics::*;
+
+        let max_width = WIDTH / nb_players as f32;
+        let start_x = max_width * f32::from(self.index);
+
+        // draw thumb
+        let radius = LIFE_IMAGE_SIZE / 2.0;
+        let pos = Point2::new(start_x + UI_MARGIN + radius, UI_MARGIN + radius);
+
+        if let Some((color, face)) = self.captured {
+            set_color(ctx, color.into())?;
+
+            let img = &res.baddies_faces[&face];
+            let Rect { w: iw, h: ih, .. } = img.get_dimensions();
+
+            let scale = Point2::new(LIFE_IMAGE_SIZE / iw, LIFE_IMAGE_SIZE / ih);
+
+            let params = DrawParam {
+                dest: Point2::new(start_x + UI_MARGIN, UI_MARGIN),
+                scale,
+                ..Default::default()
+            };
+
+            circle(ctx, DrawMode::Fill, pos, radius, 0.1)?;
+            draw_ex(ctx, img, params)?;
+        } else {
+            set_color(ctx, Color::from_rgb(255, 255, 255))?;
+            circle(ctx, DrawMode::Fill, pos, radius, 0.1)?;
+        }
 
         // draw score
         set_color(ctx, Color::from_rgb(255, 255, 255))?;
-        let text = Text::new(ctx, &format!("SCORE: {}", self.score), &res.font)?;
-        draw(ctx, &text, Point2::new(10.0, 10.0), 0.0)?;
+        let text = Text::new(
+            ctx,
+            &format!("PLAYER {}: {}", self.index + 1, self.score),
+            &res.font,
+        )?;
+        draw(
+            ctx,
+            &text,
+            Point2::new(start_x + UI_MARGIN * 2.0 + LIFE_IMAGE_SIZE, UI_MARGIN),
+            0.0,
+        )?;
 
         // draw lifes
         (0..self.life).for_each(|i| {
-            let y: f32 = LIFE_IMAGE_MARGIN as f32;
-            let x = (ctx.conf.window_mode.width as i32 - (i + 1) * LIFE_IMAGE_SIZE
-                + LIFE_IMAGE_MARGIN) as f32;
-            draw(ctx, &res.life, Point2::new(x, y), 0.0).expect("Failed to draw a heart");
+            let i = (i + 1) as f32;
+            let x = start_x + max_width - i * (LIFE_IMAGE_SIZE + UI_MARGIN);
+            draw(ctx, &res.life, Point2::new(x, UI_MARGIN), 0.0).expect("Failed to draw a heart");
         });
 
         Ok(())

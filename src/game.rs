@@ -46,9 +46,10 @@ impl MainState {
                 Action::Game(Pause) => self.paused = !self.paused,
                 Action::Game(Quit) => ctx.quit()?,
                 Action::Game(Spawn(id)) => {
+                    let index = self.players.len() as u8;
                     self.players
                         .entry(id)
-                        .or_insert_with(|| Player::new(Point2::new(WIDTH / 2.0, MAX_Y)));
+                        .or_insert_with(|| Player::new(index, Point2::new(WIDTH / 2.0, MAX_Y)));
                 }
                 Action::Player(_, _) if self.paused => (),
                 Action::Player(a, id) => self.players.get_mut(&id).unwrap().process_action(a)?,
@@ -107,7 +108,7 @@ impl EventHandler for MainState {
     fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
         self.process_actions(ctx)?;
 
-        if self.paused {
+        if self.players.is_empty() || self.paused {
             return Ok(());
         }
 
@@ -173,23 +174,24 @@ impl EventHandler for MainState {
         )?;
 
         for p in self.players.values() {
-            p.draw_ui(&self.resources, ctx)?;
+            p.draw_ui(&self.resources, self.players.len(), ctx)?;
         }
 
-        // draw paused
-        if self.paused {
+        // draw message
+        if self.players.is_empty() || self.paused {
             set_color(ctx, Color::from_rgb(255, 255, 255))?;
-            let text_pause = Text::new(ctx, "PAUSED", &self.resources.font)?;
-            let pos_x =
-                ctx.conf.window_mode.width / 2 - self.resources.font.get_width("PAUSED") as u32 / 2;
-            let pos_y =
-                ctx.conf.window_mode.height / 2 - self.resources.font.get_height() as u32 / 2;
+            let text = if self.players.is_empty() {
+                &self.resources.waiting
+            } else {
+                &self.resources.pause
+            };
+            let Rect { w: tw, h: th, .. } = text.get_dimensions();
 
             draw(
                 ctx,
-                &text_pause,
-                Point2::new(pos_x as f32, pos_y as f32),
-                0.,
+                text,
+                Point2::new((WIDTH - tw) / 2.0, (HEIGHT - GROUND_HEIGHT - th) / 2.0),
+                0.0,
             )?;
         }
 
