@@ -16,4 +16,6 @@ pub const UI_MARGIN: f32 = 10.0;
 pub const START_PLAYER_LIFE: i32 = 3;
 pub const LIFE_IMAGE_SIZE: f32 = 32.0;
 
+pub const SPAWN_FREQUENCY: u32 = 10;
+
 pub const MAX_Y: f32 = HEIGHT - GROUND_HEIGHT - RADIUS;

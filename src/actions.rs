@@ -1,19 +1,38 @@
 use baddies::Baddie;
 use game::PlayerId;
+use player::PlayerBody;
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug)]
 pub enum Action {
     Game(GameAction),
     Player(PlayerAction, PlayerId),
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug)]
 pub enum PlayerAction {
     Move(Option<MoveDirection>),
     Jump,
     Dump(bool),
     Shield(bool),
-    Collides(Baddie),
+    Collides(Entity),
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum Entity {
+    Baddie(Baddie),
+    Player(PlayerBody),
+}
+
+impl From<Baddie> for Entity {
+    fn from(baddie: Baddie) -> Self {
+        Entity::Baddie(baddie)
+    }
+}
+
+impl From<PlayerBody> for Entity {
+    fn from(body: PlayerBody) -> Self {
+        Entity::Player(body)
+    }
 }
 
 impl Into<Action> for (PlayerAction, PlayerId) {

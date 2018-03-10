@@ -1,33 +1,55 @@
-use actions::{MoveDirection, PlayerAction};
+use actions::{Entity, MoveDirection, PlayerAction};
 use baddies::{Baddie, BaddieColor, BaddieFace};
 use constants::*;
 use ggez::{Context, GameResult};
 use graphics::{self, Point2, Rect, Vector2};
 use resources::Resources;
 
-pub struct Player {
+#[derive(Debug, Copy, Clone)]
+pub struct PlayerBody {
     position: Point2,
     speed: Vector2,
+    shielded: bool,
+}
+
+impl PlayerBody {
+    fn new(position: Point2) -> PlayerBody {
+        PlayerBody {
+            position,
+            speed: Vector2::new(0.0, 0.0),
+            shielded: false,
+        }
+    }
+
+    pub fn radius(&self) -> f32 {
+        RADIUS - TOLERANCE + if self.shielded { 5.0 } else { 0.0 }
+    }
+
+    pub fn on_the_ground(&self) -> bool {
+        self.position.y >= MAX_Y
+    }
+}
+
+#[derive(Debug)]
+pub struct Player {
+    body: PlayerBody,
     captured: Option<(BaddieColor, BaddieFace)>,
     score: u32,
     life: i32,
     fast_attenuation: bool,
     current_direction: Option<MoveDirection>,
-    shielded: bool,
     index: u8,
 }
 
 impl Player {
     pub fn new(index: u8, position: Point2) -> Player {
         Player {
-            position,
-            speed: Vector2::new(0.0, 0.0),
+            body: PlayerBody::new(position),
             captured: None,
             score: 0,
             life: START_PLAYER_LIFE,
             fast_attenuation: false,
             current_direction: None,
-            shielded: false,
             index,
         }
     }
@@ -37,26 +59,28 @@ impl Player {
     pub fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
         let wanted = self.wanted_speed();
 
-        let damping = if self.on_the_ground() {
+        let body = &mut self.body;
+
+        let damping = if body.on_the_ground() {
             PLAYER_DAMPING
         } else {
             FLYING_DAMPING
         };
-        if self.speed.x > wanted {
-            self.speed.x = wanted.max(self.speed.x - damping);
+        if body.speed.x > wanted {
+            body.speed.x = wanted.max(body.speed.x - damping);
         } else {
-            self.speed.x = wanted.min(self.speed.x + damping);
+            body.speed.x = wanted.min(body.speed.x + damping);
         }
 
-        self.position.x = (self.position.x + self.speed.x)
+        body.position.x = (body.position.x + body.speed.x)
             .min(WIDTH - RADIUS)
             .max(RADIUS);
-        self.position.y = (self.position.y + self.speed.y).min(MAX_Y).max(0.0);
+        body.position.y = (body.position.y + body.speed.y).min(MAX_Y).max(0.0);
 
-        if self.on_the_ground() {
-            self.speed.y = 0.0;
+        if body.on_the_ground() {
+            body.speed.y = 0.0;
         } else {
-            self.speed.y += JUMP_ATTENUATION * if self.fast_attenuation {
+            body.speed.y += JUMP_ATTENUATION * if self.fast_attenuation {
                 FAST_ATTENUATION
             } else {
                 1.0
@@ -68,6 +92,8 @@ impl Player {
 
     pub fn draw(&self, res: &Resources, ctx: &mut Context) -> GameResult<()> {
         use self::graphics::*;
+
+        let body = &self.body;
 
         // draw player
         if let Some((color, face)) = self.captured {
@@ -84,15 +110,15 @@ impl Player {
                 ..Default::default()
             };
 
-            circle(ctx, DrawMode::Fill, self.position, RADIUS, 0.1)?;
+            circle(ctx, DrawMode::Fill, body.position, RADIUS, 0.1)?;
             draw_ex(ctx, img, params)?;
         } else {
             set_color(ctx, Color::from_rgb(255, 255, 255))?;
-            circle(ctx, DrawMode::Fill, self.position, RADIUS, 0.1)?;
+            circle(ctx, DrawMode::Fill, body.position, RADIUS, 0.1)?;
         }
 
-        if self.shielded {
-            circle(ctx, DrawMode::Line(1.0), self.position, RADIUS + 5.0, 0.1)?;
+        if body.shielded {
+            circle(ctx, DrawMode::Line(1.0), body.position, RADIUS + 5.0, 0.1)?;
         }
 
         Ok(())
@@ -162,16 +188,20 @@ impl Player {
     }
 
     pub fn on_the_ground(&self) -> bool {
-        self.position.y >= MAX_Y
+        self.body.on_the_ground()
     }
 
     pub fn rect(&self) -> Rect {
         Rect::new(
-            self.position.x - RADIUS,
-            self.position.y - RADIUS,
+            self.body.position.x - RADIUS,
+            self.body.position.y - RADIUS,
             RADIUS * 2.0,
             RADIUS * 2.0,
         )
+    }
+
+    pub fn body(&self) -> PlayerBody {
+        self.body
     }
 
     pub fn process_action(&mut self, action: PlayerAction) -> GameResult<()> {
@@ -180,19 +210,20 @@ impl Player {
         match action {
             Move(dir) => self.current_direction = dir,
             Jump => {
-                self.speed.y = -JUMP_HEIGHT;
+                self.body.speed.y = -JUMP_HEIGHT;
                 self.fast_attenuation = false;
             }
             Dump(dump) => self.fast_attenuation = dump,
-            Shield(shield) => self.shielded = shield,
-            Collides(baddie) => self.collides(&baddie),
+            Shield(shield) => self.body.shielded = shield,
+            Collides(Entity::Baddie(baddie)) => self.collides_with_baddie(&baddie),
+            Collides(Entity::Player(other)) => self.collides_with_player(&other),
         }
 
         Ok(())
     }
 
-    pub fn collides(&mut self, baddie: &Baddie) {
-        if self.shielded {
+    pub fn collides_with_baddie(&mut self, baddie: &Baddie) {
+        if self.body.shielded {
             return;
         }
 
@@ -206,13 +237,13 @@ impl Player {
             } else {
                 self.score = self.score.saturating_sub(1);
 
-                let mut dir = self.position - pos;
+                let mut dir = self.body.position - pos;
                 if self.on_the_ground() {
                     dir.y = 0.0;
                 }
                 let dir = dir.normalize() * (w / 5.0);
 
-                self.speed += dir;
+                self.body.speed += dir;
                 self.life -= 1;
                 None
             }
@@ -221,12 +252,40 @@ impl Player {
         };
     }
 
-    pub fn overlaps(&self, rect: &Rect) -> bool {
-        let radius = RADIUS - TOLERANCE + if self.shielded { 5.0 } else { 0.0 };
+    pub fn collides_with_player(&mut self, other: &PlayerBody) {
+        // swap speed
+        self.body.speed = other.speed;
 
-        let dx = self.position.x - rect.x.max(self.position.x.min(rect.x + rect.w));
-        let dy = self.position.y - rect.y.max(self.position.y.min(rect.y + rect.h));
+        let my_radius = self.body.radius();
+        let their_radius = other.radius();
+
+        let diff = self.body.position - other.position;
+
+        let dist = (diff.x * diff.x + diff.y * diff.y).sqrt();
+        let factor = (1.0 - dist / (my_radius + their_radius)) / if other.shielded { 1.0 } else { 2.0 };
+
+        self.body.speed.x += diff.x * factor;
+        self.body.speed.y += diff.y * factor;
+    }
+
+    pub fn overlaps(&self, rect: &Rect) -> bool {
+        let body = &self.body;
+        let radius = body.radius();
+
+        let dx = body.position.x - rect.x.max(body.position.x.min(rect.x + rect.w));
+        let dy = body.position.y - rect.y.max(body.position.y.min(rect.y + rect.h));
         (dx * dx + dy * dy) < (radius * radius)
+    }
+
+    pub fn overlaps_player(&self, other: &PlayerBody) -> bool {
+        let body = &self.body;
+        let my_radius = body.radius();
+        let their_radius = other.radius();
+
+        let diff = body.position - other.position;
+
+        let square_dist = diff.x * diff.x + diff.y * diff.y;
+        (my_radius + their_radius) * (my_radius + their_radius) > square_dist
     }
 
     fn wanted_speed(&self) -> f32 {

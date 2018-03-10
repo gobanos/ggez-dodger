@@ -58,6 +58,12 @@ impl Baddie {
     }
 }
 
+impl Default for Baddie {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Rand)]
 pub enum BaddieColor {
     Brown,

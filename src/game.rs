@@ -7,6 +7,7 @@ use ggez::graphics::Point2;
 use player::Player;
 use resources::Resources;
 use std::collections::HashMap;
+use std::iter;
 
 pub type ControllerId = i32;
 
@@ -26,11 +27,11 @@ impl From<ControllerId> for PlayerId {
 pub struct MainState {
     players: HashMap<PlayerId, Player>,
     actions: Vec<Action>,
-    timer: u32,
     baddies: Vec<Baddie>,
     resources: Resources,
     paused: bool,
     input_stack: HashMap<(MoveDirection, PlayerId), u32>,
+    timer: u32,
 }
 
 impl MainState {
@@ -39,10 +40,10 @@ impl MainState {
             players: HashMap::new(),
             actions: Vec::new(),
             baddies: Vec::new(),
-            timer: 0,
             resources: Resources::new(ctx)?,
             paused: false,
             input_stack: HashMap::with_capacity(2),
+            timer: 0,
         };
         Ok(s)
     }
@@ -54,8 +55,8 @@ impl MainState {
     fn process_actions(&mut self, ctx: &mut Context) -> GameResult<()> {
         use self::GameAction::*;
 
-        for &action in &self.actions {
-            match action {
+        for action in &self.actions {
+            match *action {
                 Action::Game(Pause) => self.paused = !self.paused,
                 Action::Game(Quit) => ctx.quit()?,
                 Action::Game(Spawn(id)) => {
@@ -125,11 +126,30 @@ impl EventHandler for MainState {
             return Ok(());
         }
 
+        // Update players
         for p in self.players.values_mut() {
             p.update(ctx)?;
         }
 
-        if self.timer % 10 == 0 {
+        let overlapping_players = {
+            let players_id = self.players.keys().cloned();
+            players_id
+                .clone()
+                .enumerate()
+                .flat_map(|(i, p1)| iter::repeat(p1).zip(players_id.clone().skip(i + 1)))
+                .filter(|&(p1, p2)| self.players[&p1].overlaps_player(&self.players[&p2].body()))
+                .collect::<Vec<_>>()
+        };
+
+        for &(p1, p2) in &overlapping_players {
+            let player1 = self.players[&p1].body();
+            let player2 = self.players[&p2].body();
+            self.add_action((PlayerAction::Collides(player2.into()), p1));
+            self.add_action((PlayerAction::Collides(player1.into()), p2));
+        }
+
+        // Update baddies
+        if self.timer % SPAWN_FREQUENCY == 0 {
             self.baddies.push(Baddie::new());
         }
 
@@ -143,18 +163,18 @@ impl EventHandler for MainState {
                 .find(|&(_, p)| p.overlaps(&self.baddies[i].body))
             {
                 let baddie = self.baddies.remove(i);
-                self.add_action((PlayerAction::Collides(baddie), id));
+                self.add_action((PlayerAction::Collides(baddie.into()), id));
                 break;
             } else {
                 i += 1;
             }
         }
 
-        self.timer += 1;
-
         for baddie in &mut self.baddies {
             baddie.update(ctx)?;
         }
+
+        self.timer += 1;
 
         Ok(())
     }
