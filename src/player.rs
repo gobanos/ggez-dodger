@@ -262,7 +262,8 @@ impl Player {
         let diff = self.body.position - other.position;
 
         let dist = (diff.x * diff.x + diff.y * diff.y).sqrt();
-        let factor = (1.0 - dist / (my_radius + their_radius)) / if other.shielded { 1.0 } else { 2.0 };
+        let factor =
+            (1.0 - dist / (my_radius + their_radius)) / if other.shielded { 1.0 } else { 2.0 };
 
         self.body.speed.x += diff.x * factor;
         self.body.speed.y += diff.y * factor;
