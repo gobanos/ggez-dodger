@@ -30,6 +30,179 @@ impl PlayerBody {
     }
 }
 
+pub struct PlayerController {
+    index: u8,
+    player: Option<Player>,
+}
+
+impl PlayerController {
+    pub fn new(index: u8) -> PlayerController {
+        PlayerController {
+            index,
+            player: None,
+        }
+    }
+
+    // proxy to player.draw
+    pub fn draw(&self, res: &Resources, ctx: &mut Context) -> GameResult<()> {
+        if let Some(ref player) = self.player {
+            player.draw(res, ctx)
+        } else {
+            Ok(())
+        }
+    }
+
+    // proxy to player.overlaps
+    pub fn overlaps(&self, rect: &Rect) -> bool {
+        if let Some(ref player) = self.player {
+            player.overlaps(rect)
+        } else {
+            false
+        }
+    }
+
+    // proxy to player.update
+    // checks player's life before
+    pub fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
+        self.check_player_life();
+        if let Some(ref mut player) = self.player {
+            player.update(ctx)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn check_player_life(&mut self) {
+        self.player = if let Some(player) = self.player.take() {
+            if player.life == 0 {
+                None
+            } else {
+                Some(player)
+            }
+        } else {
+            None
+        };
+    }
+
+    pub fn overlaps_player(&self, other: Option<PlayerBody>) -> bool {
+        if let (&Some(ref player), Some(other)) = (&self.player, other) {
+            player.overlaps_player(&other)
+        } else {
+            false
+        }
+    }
+
+    pub fn body(&self) -> Option<PlayerBody> {
+        // Why this is not allowed ?
+        // self.player.map(|p| p.body())
+        // error[E0507]: cannot move out of borrowed content
+        //  --> src\player.rs:90:9
+        //   |
+        //90 |         self.player.map(|p| p.body())
+        //   |         ^^^^ cannot move out of borrowed content
+
+        if let Some(ref p) = self.player {
+            Some(p.body())
+        } else {
+            None
+        }
+    }
+
+    pub fn draw_ui(&self, res: &Resources, nb_players: usize, ctx: &mut Context) -> GameResult<()> {
+        use self::graphics::*;
+
+        let col = f32::from(self.index % 2);
+        let line = f32::from(self.index / 2);
+
+        let max_width = WIDTH / nb_players.min(2) as f32;
+        let start_x = max_width * col;
+        let start_y = (LIFE_IMAGE_SIZE + UI_MARGIN) * line;
+
+        if let Some(ref player) = self.player {
+            // draw thumb
+            let radius = LIFE_IMAGE_SIZE / 2.0;
+            let pos = Point2::new(start_x + UI_MARGIN + radius, start_y + UI_MARGIN + radius);
+
+            if let Some((color, face)) = player.captured {
+                set_color(ctx, color.into())?;
+
+                let img = &res.baddies_faces[&face];
+                let Rect { w: iw, h: ih, .. } = img.get_dimensions();
+
+                let scale = Point2::new(LIFE_IMAGE_SIZE / iw, LIFE_IMAGE_SIZE / ih);
+
+                let params = DrawParam {
+                    dest: Point2::new(start_x + UI_MARGIN, start_y + UI_MARGIN),
+                    scale,
+                    ..Default::default()
+                };
+
+                circle(ctx, DrawMode::Fill, pos, radius, 0.1)?;
+                draw_ex(ctx, img, params)?;
+            } else {
+                set_color(ctx, Color::from_rgb(255, 255, 255))?;
+                circle(ctx, DrawMode::Fill, pos, radius, 0.1)?;
+            }
+
+            // draw score
+            set_color(ctx, Color::from_rgb(255, 255, 255))?;
+            let text = Text::new(
+                ctx,
+                &format!("PLAYER {}: {}", self.index + 1, player.score),
+                &res.font,
+            )?;
+            draw(
+                ctx,
+                &text,
+                Point2::new(
+                    start_x + UI_MARGIN * 2.0 + LIFE_IMAGE_SIZE,
+                    start_y + UI_MARGIN,
+                ),
+                0.0,
+            )?;
+
+            // draw lifes
+            (0..player.life).for_each(|i| {
+                let i = (i + 1) as f32;
+                let x = start_x + max_width - i * (LIFE_IMAGE_SIZE + UI_MARGIN);
+                draw(ctx, &res.life, Point2::new(x, start_y + UI_MARGIN), 0.0)
+                    .expect("Failed to draw a heart");
+            });
+        } else {
+            // draw score
+            set_color(ctx, Color::from_rgb(255, 255, 255))?;
+            let text = Text::new(
+                ctx,
+                &format!("PLAYER {}: RESPAWN", self.index + 1),
+                &res.font,
+            )?;
+            draw(
+                ctx,
+                &text,
+                Point2::new(
+                    start_x + UI_MARGIN * 2.0 + LIFE_IMAGE_SIZE,
+                    start_y + UI_MARGIN,
+                ),
+                0.0,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    pub fn process_action(&mut self, action: PlayerAction) -> GameResult<()> {
+        match (action, &mut self.player) {
+            (PlayerAction::Spawn(pos), player @ &mut None) => *player = Some(Player::new(pos)),
+            // Ignore spawn when the player is already in game
+            // Ignore other actions when the player is not in game
+            (PlayerAction::Spawn(_), &mut Some(_)) | (_, &mut None) => (),
+            (action, &mut Some(ref mut player)) => player.process_action(action)?,
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 pub struct Player {
     body: PlayerBody,
@@ -38,11 +211,10 @@ pub struct Player {
     life: i32,
     fast_attenuation: bool,
     current_direction: Option<MoveDirection>,
-    index: u8,
 }
 
 impl Player {
-    pub fn new(index: u8, position: Point2) -> Player {
+    pub fn new(position: Point2) -> Player {
         Player {
             body: PlayerBody::new(position),
             captured: None,
@@ -50,7 +222,6 @@ impl Player {
             life: START_PLAYER_LIFE,
             fast_attenuation: false,
             current_direction: None,
-            index,
         }
     }
 
@@ -124,69 +295,6 @@ impl Player {
         Ok(())
     }
 
-    pub fn draw_ui(&self, res: &Resources, nb_players: usize, ctx: &mut Context) -> GameResult<()> {
-        use self::graphics::*;
-
-        let col = f32::from(self.index % 2);
-        let line = f32::from(self.index / 2);
-
-        let max_width = WIDTH / nb_players.min(2) as f32;
-        let start_x = max_width * col;
-        let start_y = (LIFE_IMAGE_SIZE + UI_MARGIN) * line;
-
-        // draw thumb
-        let radius = LIFE_IMAGE_SIZE / 2.0;
-        let pos = Point2::new(start_x + UI_MARGIN + radius, start_y + UI_MARGIN + radius);
-
-        if let Some((color, face)) = self.captured {
-            set_color(ctx, color.into())?;
-
-            let img = &res.baddies_faces[&face];
-            let Rect { w: iw, h: ih, .. } = img.get_dimensions();
-
-            let scale = Point2::new(LIFE_IMAGE_SIZE / iw, LIFE_IMAGE_SIZE / ih);
-
-            let params = DrawParam {
-                dest: Point2::new(start_x + UI_MARGIN, start_y + UI_MARGIN),
-                scale,
-                ..Default::default()
-            };
-
-            circle(ctx, DrawMode::Fill, pos, radius, 0.1)?;
-            draw_ex(ctx, img, params)?;
-        } else {
-            set_color(ctx, Color::from_rgb(255, 255, 255))?;
-            circle(ctx, DrawMode::Fill, pos, radius, 0.1)?;
-        }
-
-        // draw score
-        set_color(ctx, Color::from_rgb(255, 255, 255))?;
-        let text = Text::new(
-            ctx,
-            &format!("PLAYER {}: {}", self.index + 1, self.score),
-            &res.font,
-        )?;
-        draw(
-            ctx,
-            &text,
-            Point2::new(
-                start_x + UI_MARGIN * 2.0 + LIFE_IMAGE_SIZE,
-                start_y + UI_MARGIN,
-            ),
-            0.0,
-        )?;
-
-        // draw lifes
-        (0..self.life).for_each(|i| {
-            let i = (i + 1) as f32;
-            let x = start_x + max_width - i * (LIFE_IMAGE_SIZE + UI_MARGIN);
-            draw(ctx, &res.life, Point2::new(x, start_y + UI_MARGIN), 0.0)
-                .expect("Failed to draw a heart");
-        });
-
-        Ok(())
-    }
-
     pub fn on_the_ground(&self) -> bool {
         self.body.on_the_ground()
     }
@@ -205,18 +313,19 @@ impl Player {
     }
 
     pub fn process_action(&mut self, action: PlayerAction) -> GameResult<()> {
-        use self::PlayerAction::*;
+        let on_the_ground = self.on_the_ground();
 
         match action {
-            Move(dir) => self.current_direction = dir,
-            Jump => {
+            PlayerAction::Move(dir) => self.current_direction = dir,
+            PlayerAction::Jump if on_the_ground => {
                 self.body.speed.y = -JUMP_HEIGHT;
                 self.fast_attenuation = false;
             }
-            Dump(dump) => self.fast_attenuation = dump,
-            Shield(shield) => self.body.shielded = shield,
-            Collides(Entity::Baddie(baddie)) => self.collides_with_baddie(&baddie),
-            Collides(Entity::Player(other)) => self.collides_with_player(&other),
+            PlayerAction::Dump(dump) if !on_the_ground => self.fast_attenuation = dump,
+            PlayerAction::Shield(shield) => self.body.shielded = shield,
+            PlayerAction::Collides(Entity::Baddie(baddie)) => self.collides_with_baddie(&baddie),
+            PlayerAction::Collides(Entity::Player(other)) => self.collides_with_player(&other),
+            _ => (),
         }
 
         Ok(())

@@ -1,6 +1,7 @@
 use baddies::Baddie;
 use game::PlayerId;
 use player::PlayerBody;
+use ggez::graphics::Point2;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Action {
@@ -15,6 +16,7 @@ pub enum PlayerAction {
     Dump(bool),
     Shield(bool),
     Collides(Entity),
+    Spawn(Point2),
 }
 
 #[derive(Copy, Clone, Debug)]
