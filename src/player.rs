@@ -85,7 +85,7 @@ impl PlayerController {
     }
 
     pub fn overlaps_player(&self, other: Option<PlayerBody>) -> bool {
-        if let (&Some(ref player), Some(other)) = (&self.player, other) {
+        if let (Some(player), Some(other)) = (self.player.as_ref(), other) {
             player.overlaps_player(&other)
         } else {
             false
@@ -93,19 +93,7 @@ impl PlayerController {
     }
 
     pub fn body(&self) -> Option<PlayerBody> {
-        // Why this is not allowed ?
-        // self.player.map(|p| p.body())
-        // error[E0507]: cannot move out of borrowed content
-        //  --> src\player.rs:90:9
-        //   |
-        //90 |         self.player.map(|p| p.body())
-        //   |         ^^^^ cannot move out of borrowed content
-
-        if let Some(ref p) = self.player {
-            Some(p.body())
-        } else {
-            None
-        }
+        self.player.as_ref().map(|p| p.body())
     }
 
     pub fn draw_ui(&self, res: &Resources, nb_players: usize, ctx: &mut Context) -> GameResult<()> {
